@@ -3,8 +3,9 @@ package acl
 import "sync"
 
 const (
-	TopicNumAuthType = "topicNumAuth" //add userName
-	TopicSetAuthType = "topicSetAuth"
+	TopicNumAuthType      = "topicNumAuth"
+	TopicSetAuthType      = "topicSetAuth"
+	TopicAlwaysVerifyType = " topicAlwaysVerify"
 )
 
 type TopicNumAuth struct {
@@ -39,7 +40,7 @@ func (this *TopicNumAuth) CheckSub(topic string) bool {
 
 	//not exists in map
 	if _, ok := this.TopicM.Load(topic); !ok {
-		if this.NowTotal == this.Total{
+		if this.NowTotal == this.Total {
 			return false
 		}
 		this.TopicM.Store(topic, true)
@@ -66,6 +67,9 @@ var _ Authenticator = (*TopicSetAuth)(nil)
 
 func NewTopicSetAuthProvider(topicMap map[string]bool) *TopicSetAuth {
 	topicM := &sync.Map{}
+	if topicMap == nil {
+		return &TopicSetAuth{topicM}
+	}
 	for k, v := range topicMap {
 		topicM.Store(k, v)
 	}
@@ -85,4 +89,21 @@ func (this *TopicSetAuth) CheckSub(topic string) bool {
 
 func (this *TopicSetAuth) ProcessUnSub(topic string) {
 	return
+}
+
+type TopicAlwaysVerify bool
+
+var _ Authenticator = (*TopicAlwaysVerify)(nil)
+
+func (this TopicAlwaysVerify) CheckPub(topic string) bool {
+	return true
+
+}
+
+func (this TopicAlwaysVerify) CheckSub(topic string) bool {
+	return true
+
+}
+
+func (this TopicAlwaysVerify) ProcessUnSub(topic string) {
 }

@@ -32,14 +32,18 @@ func (this *TopicAclManger) ProcessUnSub(topic string) {
 	return
 }
 
-func NewTopicAclManger(providerName, userName string, f func(userName string) *AuthInfo) (*TopicAclManger, error) {
-	authInfo := f(userName)
+func NewTopicAclManger(providerName string, authInfo *AuthInfo) (*TopicAclManger, error) {
+
 	switch providerName {
 	case TopicNumAuthType:
 		return &TopicAclManger{NewTopicNumAuthProvider(authInfo.Total)}, nil
 
 	case TopicSetAuthType:
 		return &TopicAclManger{NewTopicSetAuthProvider(authInfo.TopicMap)}, nil
+
+	case TopicAlwaysVerifyType:
+		var yes TopicAlwaysVerify
+		return &TopicAclManger{yes}, nil
 
 	default:
 		return nil, errors.New("not exists provider:" + providerName)

@@ -24,11 +24,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/surge/glog"
-	"github.com/surgemq/message"
+	"github.com/fangwendong/surgemq/acl"
 	"github.com/fangwendong/surgemq/auth"
 	"github.com/fangwendong/surgemq/sessions"
 	"github.com/fangwendong/surgemq/topics"
+	"github.com/surge/glog"
+	"github.com/surgemq/message"
 )
 
 var (
@@ -109,8 +110,10 @@ type Server struct {
 	// A indicator on whether this server has already checked configuration
 	configOnce sync.Once
 
-	subs []interface{}
-	qoss []byte
+	subs           []interface{}
+	qoss           []byte
+	aclProvider    string
+	getAclInfoFunc func(name string) *acl.AuthInfo
 }
 
 // ListenAndServe listents to connections on the URI requested, and handles any
@@ -301,6 +304,14 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		req.SetKeepAlive(minKeepAlive)
 	}
 
+	topicAclManger, err := acl.NewTopicAclManger(this.aclProvider, this.getAclInfoFunc(string(req.Username())))
+	if err != nil {
+		resp.SetReturnCode(message.ErrBadUsernameOrPassword)
+		resp.SetSessionPresent(false)
+		writeMessage(conn, resp)
+		return nil, err
+	}
+
 	svc = &service{
 		id:     atomic.AddUint64(&gsvcid, 1),
 		client: false,
@@ -310,9 +321,10 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		ackTimeout:     this.AckTimeout,
 		timeoutRetries: this.TimeoutRetries,
 
-		conn:      conn,
-		sessMgr:   this.sessMgr,
-		topicsMgr: this.topicsMgr,
+		conn:           conn,
+		sessMgr:        this.sessMgr,
+		topicsMgr:      this.topicsMgr,
+		topicAclManger: topicAclManger,
 	}
 
 	err = this.getSession(svc, req, resp)
@@ -365,6 +377,10 @@ func (this *Server) checkConfiguration() error {
 
 		if this.Authenticator == "" {
 			this.Authenticator = "mockSuccess"
+		}
+
+		if this.aclProvider == "" {
+			this.aclProvider = acl.TopicAlwaysVerifyType
 		}
 
 		this.authMgr, err = auth.NewManager(this.Authenticator)

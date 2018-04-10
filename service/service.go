@@ -20,10 +20,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/surge/glog"
-	"github.com/surgemq/message"
+	"github.com/fangwendong/surgemq/acl"
 	"github.com/fangwendong/surgemq/sessions"
 	"github.com/fangwendong/surgemq/topics"
+	"github.com/surge/glog"
+	"github.com/surgemq/message"
 )
 
 type (
@@ -118,9 +119,10 @@ type service struct {
 	intmp  []byte
 	outtmp []byte
 
-	subs  []interface{}
-	qoss  []byte
-	rmsgs []*message.PublishMessage
+	subs           []interface{}
+	qoss           []byte
+	rmsgs          []*message.PublishMessage
+	topicAclManger *acl.TopicAclManger
 }
 
 func (this *service) start() error {

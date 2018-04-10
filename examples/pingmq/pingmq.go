@@ -71,7 +71,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/surge/netx"
 	"github.com/surgemq/message"
-	"github.com/surgemq/surgemq/service"
+	"github.com/fangwendong/surgemq/service"
 )
 
 type strlist []string

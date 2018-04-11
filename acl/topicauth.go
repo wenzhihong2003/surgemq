@@ -43,11 +43,6 @@ func NewTopicAclManger(providerName string, f GetAuthFunc) (*TopicAclManger, err
 	return &TopicAclManger{v}, nil
 }
 
-var DefalutNewTopicAclMangerFunc = func(userName string) (*TopicAclManger, error) {
-	var yes TopicAlwaysVerify
-	return &TopicAclManger{yes}, nil
-}
-
 func Register(name string, provider Authenticator) {
 	if provider == nil {
 		panic("auth: Register provide is nil")

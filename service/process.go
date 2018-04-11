@@ -363,7 +363,9 @@ func (this *service) processUnsubscribe(msg *message.UnsubscribeMessage) error {
 	for _, t := range topics {
 		this.topicsMgr.Unsubscribe(t, &this.onpub)
 		this.sess.RemoveTopic(string(t))
+
 		this.aclManger.ProcessUnSub(this.userName, string(t))
+
 	}
 
 	resp := message.NewUnsubackMessage()

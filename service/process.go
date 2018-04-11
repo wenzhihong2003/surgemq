@@ -20,9 +20,9 @@ import (
 	"io"
 	"reflect"
 
+	"github.com/fangwendong/surgemq/sessions"
 	"github.com/surge/glog"
 	"github.com/surgemq/message"
-	"github.com/surgemq/surgemq/sessions"
 )
 
 var (
@@ -271,6 +271,11 @@ func (this *service) processAcked(ackq *sessions.Ackqueue) {
 // If QoS == 1, we should send back PUBACK, then take the next step
 // If QoS == 2, we need to put it in the ack queue, send back PUBREC
 func (this *service) processPublish(msg *message.PublishMessage) error {
+
+	if !this.topicAclManger.CheckPub(msg.Topic()) {
+		return errors.New("acl check fail !")
+	}
+
 	switch msg.QoS() {
 	case message.QosExactlyOnce:
 		this.sess.Pub2in.Wait(msg, nil)
@@ -312,6 +317,12 @@ func (this *service) processSubscribe(msg *message.SubscribeMessage) error {
 	this.rmsgs = this.rmsgs[0:0]
 
 	for i, t := range topics {
+
+		if !this.topicAclManger.CheckSub(t) {
+			retcodes = append(retcodes, message.QosFailure)
+			continue
+		}
+
 		rqos, err := this.topicsMgr.Subscribe(t, qos[i], &this.onpub)
 		if err != nil {
 			return err
@@ -346,11 +357,13 @@ func (this *service) processSubscribe(msg *message.SubscribeMessage) error {
 
 // For UNSUBSCRIBE message, we should remove the subscriber, and send back UNSUBACK
 func (this *service) processUnsubscribe(msg *message.UnsubscribeMessage) error {
+
 	topics := msg.Topics()
 
 	for _, t := range topics {
 		this.topicsMgr.Unsubscribe(t, &this.onpub)
 		this.sess.RemoveTopic(string(t))
+		this.topicAclManger.ProcessUnSub(t)
 	}
 
 	resp := message.NewUnsubackMessage()

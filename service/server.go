@@ -110,10 +110,11 @@ type Server struct {
 	// A indicator on whether this server has already checked configuration
 	configOnce sync.Once
 
-	subs             []interface{}
-	qoss             []byte
-	NewAclMangerFunc acl.NewTopicAclMangerFunc
-	AclProvider      string
+	subs        []interface{}
+	qoss        []byte
+	GetAuthFunc acl.GetAuthFunc
+	AclProvider string
+	aclManger   *acl.TopicAclManger
 }
 
 // ListenAndServe listents to connections on the URI requested, and handles any
@@ -304,14 +305,6 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		req.SetKeepAlive(minKeepAlive)
 	}
 
-	topicAclManger, err := this.NewAclMangerFunc(string(req.Username()))
-	if err != nil {
-		resp.SetReturnCode(message.ErrBadUsernameOrPassword)
-		resp.SetSessionPresent(false)
-		writeMessage(conn, resp)
-		return nil, err
-	}
-
 	svc = &service{
 		id:     atomic.AddUint64(&gsvcid, 1),
 		client: false,
@@ -321,10 +314,11 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		ackTimeout:     this.AckTimeout,
 		timeoutRetries: this.TimeoutRetries,
 
-		conn:           conn,
-		sessMgr:        this.sessMgr,
-		topicsMgr:      this.topicsMgr,
-		topicAclManger: topicAclManger,
+		conn:      conn,
+		sessMgr:   this.sessMgr,
+		topicsMgr: this.topicsMgr,
+		aclManger: this.aclManger,
+		userName:  string(req.Username()),
 	}
 
 	err = this.getSession(svc, req, resp)
@@ -379,10 +373,6 @@ func (this *Server) checkConfiguration() error {
 			this.Authenticator = "mockSuccess"
 		}
 
-		if this.AclProvider == "" {
-			this.AclProvider = acl.TopicAlwaysVerifyType
-		}
-
 		this.authMgr, err = auth.NewManager(this.Authenticator)
 		if err != nil {
 			return
@@ -402,11 +392,15 @@ func (this *Server) checkConfiguration() error {
 		}
 
 		this.topicsMgr, err = topics.NewManager(this.TopicsProvider)
+		if err != nil {
+			return
+		}
 
 		if this.AclProvider == "" {
 			this.AclProvider = acl.TopicAlwaysVerifyType
-			this.NewAclMangerFunc = acl.DefalutNewTopicAclMangerFunc
 		}
+
+		this.aclManger, err = acl.NewTopicAclManger(this.AclProvider, this.GetAuthFunc)
 
 		return
 	})

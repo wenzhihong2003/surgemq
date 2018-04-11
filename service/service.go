@@ -119,10 +119,11 @@ type service struct {
 	intmp  []byte
 	outtmp []byte
 
-	subs           []interface{}
-	qoss           []byte
-	rmsgs          []*message.PublishMessage
-	topicAclManger *acl.TopicAclManger
+	subs      []interface{}
+	qoss      []byte
+	rmsgs     []*message.PublishMessage
+	aclManger *acl.TopicAclManger
+	userName  string
 }
 
 func (this *service) start() error {

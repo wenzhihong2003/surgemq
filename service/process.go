@@ -318,7 +318,7 @@ func (this *service) processSubscribe(msg *message.SubscribeMessage) error {
 
 	for i, t := range topics {
 
-		if this.topicAclManger.CheckSub(t) {
+		if !this.topicAclManger.CheckSub(t) {
 			retcodes = append(retcodes, message.QosFailure)
 			continue
 		}

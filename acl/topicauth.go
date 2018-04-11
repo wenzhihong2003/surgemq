@@ -1,9 +1,5 @@
 package acl
 
-import (
-	"errors"
-)
-
 type Authenticator interface {
 	CheckPub(topic []byte) bool
 	CheckSub(topic []byte) bool
@@ -11,38 +7,25 @@ type Authenticator interface {
 }
 
 type TopicAclManger struct {
-	p Authenticator
+	P Authenticator
 }
 
 func (this *TopicAclManger) CheckPub(topic []byte) bool {
-	return this.p.CheckPub(topic)
+	return this.P.CheckPub(topic)
 }
 
 func (this *TopicAclManger) CheckSub(topic []byte) bool {
-	return this.p.CheckSub(topic)
+	return this.P.CheckSub(topic)
 }
 
 func (this *TopicAclManger) ProcessUnSub(topic []byte) {
-	this.p.ProcessUnSub(topic)
+	this.P.ProcessUnSub(topic)
 	return
 }
 
-func NewTopicAclManger(providerName string, authInfo interface{}) (*TopicAclManger, error) {
+type NewTopicAclMangerFunc func(userName string) (*TopicAclManger, error)
 
-	switch providerName {
-	case TopicNumAuthType:
-		return &TopicAclManger{NewTopicNumAuthProvider(authInfo)}, nil
-
-	case TopicSetAuthType:
-		return &TopicAclManger{NewTopicSetAuthProvider(authInfo)}, nil
-
-	case TopicAlwaysVerifyType:
-		var yes TopicAlwaysVerify
-		return &TopicAclManger{yes}, nil
-
-	default:
-		return nil, errors.New("not exists provider:" + providerName)
-
-	}
-
+var DefalutNewTopicAclMangerFunc = func(userName string) (*TopicAclManger, error) {
+	var yes TopicAlwaysVerify
+	return &TopicAclManger{yes}, nil
 }

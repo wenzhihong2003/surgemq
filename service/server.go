@@ -110,10 +110,10 @@ type Server struct {
 	// A indicator on whether this server has already checked configuration
 	configOnce sync.Once
 
-	subs           []interface{}
-	qoss           []byte
-	aclProvider    string
-	getAclInfoFunc func(name string) interface{}
+	subs             []interface{}
+	qoss             []byte
+	NewAclMangerFunc acl.NewTopicAclMangerFunc
+	AclProvider      string
 }
 
 // ListenAndServe listents to connections on the URI requested, and handles any
@@ -304,7 +304,7 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		req.SetKeepAlive(minKeepAlive)
 	}
 
-	topicAclManger, err := acl.NewTopicAclManger(this.aclProvider, this.getAclInfoFunc(string(req.Username())))
+	topicAclManger, err := this.NewAclMangerFunc(string(req.Username()))
 	if err != nil {
 		resp.SetReturnCode(message.ErrBadUsernameOrPassword)
 		resp.SetSessionPresent(false)
@@ -379,8 +379,8 @@ func (this *Server) checkConfiguration() error {
 			this.Authenticator = "mockSuccess"
 		}
 
-		if this.aclProvider == "" {
-			this.aclProvider = acl.TopicAlwaysVerifyType
+		if this.AclProvider == "" {
+			this.AclProvider = acl.TopicAlwaysVerifyType
 		}
 
 		this.authMgr, err = auth.NewManager(this.Authenticator)
@@ -402,6 +402,11 @@ func (this *Server) checkConfiguration() error {
 		}
 
 		this.topicsMgr, err = topics.NewManager(this.TopicsProvider)
+
+		if this.AclProvider == "" {
+			this.AclProvider = acl.TopicAlwaysVerifyType
+			this.NewAclMangerFunc = acl.DefalutNewTopicAclMangerFunc
+		}
 
 		return
 	})

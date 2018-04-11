@@ -272,7 +272,7 @@ func (this *service) processAcked(ackq *sessions.Ackqueue) {
 // If QoS == 2, we need to put it in the ack queue, send back PUBREC
 func (this *service) processPublish(msg *message.PublishMessage) error {
 
-	if !this.topicAclManger.CheckPub(string(msg.Topic())) {
+	if !this.topicAclManger.CheckPub(msg.Topic()) {
 		return errors.New("acl check fail !")
 	}
 
@@ -318,7 +318,7 @@ func (this *service) processSubscribe(msg *message.SubscribeMessage) error {
 
 	for i, t := range topics {
 
-		if this.topicAclManger.CheckSub(string(t)) {
+		if this.topicAclManger.CheckSub(t) {
 			retcodes = append(retcodes, message.QosFailure)
 			continue
 		}
@@ -363,7 +363,7 @@ func (this *service) processUnsubscribe(msg *message.UnsubscribeMessage) error {
 	for _, t := range topics {
 		this.topicsMgr.Unsubscribe(t, &this.onpub)
 		this.sess.RemoveTopic(string(t))
-		this.topicAclManger.ProcessUnSub(string(t))
+		this.topicAclManger.ProcessUnSub(t)
 	}
 
 	resp := message.NewUnsubackMessage()

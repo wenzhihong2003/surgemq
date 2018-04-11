@@ -5,10 +5,13 @@ import (
 	"testing"
 )
 
-var f = func(userName string) *AuthInfo {
-	return &AuthInfo{
-		1,
-		map[string]bool{"sa": true},
+var f = func(userName string) interface{} {
+	return 1
+}
+
+var g = func(userName string) interface{} {
+	return map[string]bool{
+		"sa": true,
 	}
 }
 
@@ -18,24 +21,41 @@ func TestNewTopicAclManger(t *testing.T) {
 		fmt.Println(err.Error())
 		return
 	}
-	fmt.Println(m.CheckSub("sss"))
-	fmt.Println(m.CheckSub("sss"))
-	fmt.Println(m.CheckSub("ssxs"))
+	fmt.Println(m.CheckSub([]byte("sss")))
+	fmt.Println(m.CheckSub([]byte("sss")))
+	fmt.Println(m.CheckSub([]byte("ssxs")))
 
-	m1, err := NewTopicAclManger(TopicSetAuthType, f("kk"))
+	m1, err := NewTopicAclManger(TopicSetAuthType, g("kk"))
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
-	fmt.Println(m1.CheckSub("sa"))
-	fmt.Println(m1.CheckSub("ab"))
+	fmt.Println(m1.CheckSub([]byte("sa")))
+	fmt.Println(m1.CheckSub([]byte("ab")))
 
 	m2, err := NewTopicAclManger(TopicAlwaysVerifyType, nil)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
-	fmt.Println(m2.CheckSub("sa"))
-	fmt.Println(m2.CheckSub("ab"))
+	fmt.Println(m2.CheckSub([]byte("sa")))
+	fmt.Println(m2.CheckSub([]byte("ab")))
+
+	m3, err := NewTopicAclManger(TopicSetAuthType, nil)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	fmt.Println(m3.CheckSub([]byte("sa")))
+	fmt.Println(m3.CheckSub([]byte("ab")))
+
+	m4, err := NewTopicAclManger(TopicNumAuthType, nil)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	fmt.Println(m4.CheckSub([]byte("sss")))
+	fmt.Println(m4.CheckSub([]byte("sss")))
+	fmt.Println(m4.CheckSub([]byte("ssxs")))
 
 }

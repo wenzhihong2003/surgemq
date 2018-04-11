@@ -113,7 +113,7 @@ type Server struct {
 	subs           []interface{}
 	qoss           []byte
 	aclProvider    string
-	getAclInfoFunc func(name string) *acl.AuthInfo
+	getAclInfoFunc func(name string) interface{}
 }
 
 // ListenAndServe listents to connections on the URI requested, and handles any

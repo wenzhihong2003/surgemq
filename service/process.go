@@ -51,9 +51,9 @@ func (this *service) processor() {
 		// 1. Find out what message is next and the size of the message
 		mtype, total, err := this.peekMessageSize()
 		if err != nil {
-			//if err != io.EOF {
-			glog.Errorf("(%s) Error peeking next message size: %v", this.cid(), err)
-			//}
+			if err != io.EOF {
+				glog.Errorf("(%s) Error peeking next message size: %v", this.cid(), err)
+			}
 			return
 		}
 

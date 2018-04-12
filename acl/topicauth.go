@@ -1,7 +1,7 @@
 package acl
 
 import (
-	"github.com/pkg/errors"
+	"errors"
 )
 
 type GetAuthFunc func(userName, topic string) interface{}

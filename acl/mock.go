@@ -50,12 +50,12 @@ func (this *topicNumAuth) CheckPub(userName, topic string) bool {
 
 func (this *topicNumAuth) CheckSub(userName, topic string) bool {
 	key := fmt.Sprintf(userTopicKeyFmt, userName, topic)
-	totalLimit, ok := getAuth(userName, topic).(int)
-	if !ok {
-		return false
+	if _, ok := this.topicUserM.Load(key); ok {
+		return true
 	}
 
-	if totalLimit == 0 {
+	totalLimit, ok := getAuth(userName, topic).(int)
+	if !ok || totalLimit == 0 {
 		return false
 	}
 
@@ -66,18 +66,12 @@ func (this *topicNumAuth) CheckSub(userName, topic string) bool {
 		return true
 	}
 
-	if totalNow.(int) > totalLimit {
+	if totalNow.(int) >= totalLimit {
 		return false
 	}
 
-	if _, ok := this.topicUserM.Load(key); ok {
-		return true
-	}
-
-	if totalNow.(int) == totalLimit {
-		return false
-	}
-
+	this.topicTotalNowM.Store(userName, totalNow.(int)+1)
+	this.topicUserM.Store(key, true)
 	return true
 }
 
@@ -100,7 +94,7 @@ type topicSetAuth struct {
 var _ Authenticator = (*topicSetAuth)(nil)
 
 func (this *topicSetAuth) CheckPub(userName, topic string) bool {
-	return true
+	return this.CheckSub(userName, topic)
 }
 
 func (this *topicSetAuth) CheckSub(userName, topic string) bool {

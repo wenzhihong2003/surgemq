@@ -38,6 +38,8 @@ func Test1(t *testing.T) {
 		fmt.Println("mqtt connection failed.", zap.Error(token.Error()))
 		return
 	}
+
+	defer mc.Disconnect(12)
 	if token := mc.Subscribe("ds", 0, f); token.Wait() && token.Error() != nil {
 		fmt.Println("publish failed.", zap.Error(token.Error()))
 
@@ -137,6 +139,7 @@ func Test4(t *testing.T) {
 		fmt.Println("mqtt connection failed.", zap.Error(token.Error()))
 		return
 	}
+	defer mc.Disconnect(12)
 	if token := mc.Subscribe("ds", 0, f); token.Wait() && token.Error() != nil {
 		fmt.Println("publish failed.", zap.Error(token.Error()))
 

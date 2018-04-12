@@ -230,6 +230,7 @@ func (this *service) stop() {
 			glog.Errorf("(%s/%d): %v", this.cid(), this.id, err)
 		} else {
 			for _, t := range topics {
+				this.aclManger.ProcessUnSub(this.userName, t)
 				if err := this.topicsMgr.Unsubscribe([]byte(t), &this.onpub); err != nil {
 					glog.Errorf("(%s): Error unsubscribing topic %q: %v", this.cid(), t, err)
 				}

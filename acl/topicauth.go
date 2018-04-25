@@ -54,8 +54,8 @@ func NewTopicAclManger(providerName string, f GetAuthFunc) (*TopicAclManger, err
 }
 
 func Register(name string, provider Authenticator) {
-	if provider == nil {
-		panic("auth: Register provide is nil")
+	if provider == nil || len(name) == 0 {
+		panic("传入参数name和provider有误!")
 	}
 
 	if _, dup := providers[name]; dup {

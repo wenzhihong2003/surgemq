@@ -40,7 +40,7 @@ func Test1(t *testing.T) {
 	}
 
 	defer mc.Disconnect(12)
-	if token := mc.Subscribe("ds", 0, f); token.Wait() && token.Error() != nil {
+	if token := mc.Subscribe("fwd", 0, f); token.Wait() && token.Error() != nil {
 		fmt.Println("publish failed.", zap.Error(token.Error()))
 
 	} else {

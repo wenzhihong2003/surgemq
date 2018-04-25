@@ -4,14 +4,20 @@ import (
 	"errors"
 )
 
-type GetAuthFunc func(userName, topic string) interface{}
+const (
+	TopicAlwaysVerifyType = "topicAlwaysVerify"
+	TopicNumAuthType      = "topicNumAuth"
+	TopicSetAuthType      = "topicSetAuth"
+	userTopicKeyFmt       = "%s:%s"
+)
 
-var getAuth GetAuthFunc //callback get authInfo of user
+type GetAuthFunc func(userName, topic string) interface{}
 
 type Authenticator interface {
 	CheckPub(userName, topic string) bool
 	CheckSub(userName, topic string) bool
 	ProcessUnSub(userName, topic string)
+	SetAuthFunc(f GetAuthFunc)
 }
 
 var providers = make(map[string]Authenticator)
@@ -33,14 +39,18 @@ func (this *TopicAclManger) ProcessUnSub(userName, topic string) {
 	return
 }
 
+func (this *TopicAclManger) SetAuthFunc(f GetAuthFunc) {
+	this.p.SetAuthFunc(f)
+}
+
 func NewTopicAclManger(providerName string, f GetAuthFunc) (*TopicAclManger, error) {
-	getAuth = f
 	v, ok := providers[providerName]
 	if !ok {
 		return nil, errors.New("providers not exist this name:" + providerName)
 	}
-
-	return &TopicAclManger{v}, nil
+	topicManger := &TopicAclManger{v}
+	topicManger.SetAuthFunc(f)
+	return topicManger, nil
 }
 
 func Register(name string, provider Authenticator) {
@@ -57,4 +67,10 @@ func Register(name string, provider Authenticator) {
 
 func UnRegister(name string) {
 	delete(providers, name)
+}
+
+func init() {
+	Register(TopicAlwaysVerifyType, topicAlwaysVerify)
+	Register(TopicNumAuthType, new(topicNumAuth))
+	Register(TopicSetAuthType, new(topicSetAuth))
 }

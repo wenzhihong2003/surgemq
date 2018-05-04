@@ -7,7 +7,7 @@ import (
 
 type topicSetAuth struct {
 	topicM sync.Map
-	f      GetAuthFunc
+	f      GetAuthFunc // must return bool
 }
 
 var _ Authenticator = (*topicSetAuth)(nil)
@@ -17,23 +17,18 @@ func (this *topicSetAuth) CheckPub(clientInfo *ClientInfo, topic string) bool {
 }
 
 func (this *topicSetAuth) CheckSub(clientInfo *ClientInfo, topic string) (success bool) {
+	if clientInfo == nil {
+		return
+	}
 	token := clientInfo.Token
 	key := fmt.Sprintf(userTopicKeyFmt, token, topic)
-	if _, ok := this.topicM.Load(key); ok {
-		success = true
+	if v, ok := this.topicM.Load(key); ok {
+		success = v.(bool)
 		return
 	}
 
-	var ok bool
-	success, ok = this.f(token, topic).(bool)
-	if !ok {
-		success = false
-		return
-	}
-
-	if success {
-		this.topicM.Store(key, true)
-	}
+	success = this.f(token, topic).(bool)
+	this.topicM.Store(key, success)
 
 	return
 }

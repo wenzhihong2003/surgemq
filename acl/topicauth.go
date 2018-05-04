@@ -22,15 +22,7 @@ type ClientInfo struct {
 	Token    string
 	UserName string
 	UserId   string
-	SdkInfo  *SdkInfo
-}
-
-//"sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64",
-type SdkInfo struct {
-	SdkLang    string
-	SdkVersion string
-	SdkArch    string
-	SdkOs      string
+	SdkInfo  map[string]string
 }
 
 //sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
@@ -109,12 +101,9 @@ func log(subPub, topic string, clientInfo *ClientInfo) {
 	if clientInfo != nil {
 		logFields = append(logFields, zap.String("user-name", clientInfo.UserName))
 		logFields = append(logFields, zap.String("user-id", clientInfo.UserId))
-		if clientInfo.SdkInfo != nil {
-			//sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
-			logFields = append(logFields, zap.String("sdk-lang", clientInfo.SdkInfo.SdkLang))
-			logFields = append(logFields, zap.String("sdk-version", clientInfo.SdkInfo.SdkVersion))
-			logFields = append(logFields, zap.String("sdk-arch", clientInfo.SdkInfo.SdkArch))
-			logFields = append(logFields, zap.String("sdk-os", clientInfo.SdkInfo.SdkOs))
+
+		for k, v := range clientInfo.SdkInfo {
+			logFields = append(logFields, zap.String(k, v))
 		}
 	}
 	logger.Info(subPub, logFields...)

@@ -358,7 +358,6 @@ Password: bearer 1bcf468df513a81bf9fdf698694a327d5fba12b7
 Username: sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
 */
 func getClientInfo(clientInfo *auth.ClientInfo, sdkInfoStr string) *acl.ClientInfo {
-
 	//todo 兼容旧版本没有token的
 	if clientInfo == nil {
 		return nil
@@ -369,30 +368,12 @@ func getClientInfo(clientInfo *auth.ClientInfo, sdkInfoStr string) *acl.ClientIn
 	}
 
 	//解析sdkinfo
-	sdkInfo := &acl.SdkInfo{}
+	sdkInfo := map[string]string{}
 	for _, str := range strings.Split(sdkInfoStr, "|") {
 		if kv := strings.Split(str, "="); len(kv) == 2 {
-			switch kv[0] {
-			case "sdk-lang":
-				sdkInfo.SdkLang = kv[1]
-				break
-			case "sdk-version":
-				sdkInfo.SdkVersion = kv[1]
-				break
-			case "sdk-arch":
-				sdkInfo.SdkArch = kv[1]
-				break
-			case "sdk-os":
-				sdkInfo.SdkOs = kv[1]
-				break
-			default:
-				break
-
-			}
+			sdkInfo[kv[0]] = kv[1]
 		}
 	}
-	//"sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64",
-
 	return &acl.ClientInfo{
 		Token:    clientInfo.Token,
 		UserName: clientInfo.UserName,

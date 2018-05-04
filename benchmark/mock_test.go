@@ -21,8 +21,8 @@ func Test1(t *testing.T) {
 	connOpts := &MQTT.ClientOptions{
 		ClientID:             "ds-live",
 		CleanSession:         true,
-		Username:             "fwd",
-		Password:             "zzz",
+		Username:             "sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64",
+		Password:             "1bcf468df513a81bf9fdf698694a327d5fba12b7",
 		MaxReconnectInterval: 1 * time.Second,
 		KeepAlive:            30 * time.Second,
 		AutoReconnect:        true,
@@ -31,7 +31,7 @@ func Test1(t *testing.T) {
 		TLSConfig:            tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert},
 		OnConnectionLost:     func(c MQTT.Client, err error) { fmt.Println("mqtt disconnected.", zap.Error(err)) },
 	}
-	connOpts.AddBroker("tcp://127.0.0.1:8080")
+	connOpts.AddBroker("tcp://testserver:8011")
 
 	mc := MQTT.NewClient(connOpts)
 	if token := mc.Connect(); token.Wait() && token.Error() != nil {
@@ -86,7 +86,7 @@ func Test2(t *testing.T) {
 		Authenticator:    "mockSuccess", // always succeed
 		TopicsProvider:   "mem",         // keeps topic subscriptions in memory
 		AclProvider:      acl.TopicNumAuthType,
-		GetAuthFunc: func(userName, topic string) interface{} {
+		TopicAclFunc: func(userName, topic string) interface{} {
 			return 1
 		},
 	}
@@ -103,11 +103,7 @@ func TestTggw(t *testing.T) {
 		SessionsProvider: "mem",         // keeps sessions in memory
 		Authenticator:    "mockSuccess", // always succeed
 		TopicsProvider:   "mem",         // keeps topic subscriptions in memory
-		AclProvider:      acl.TopicSetAuthType,
-		GetAuthFunc: func(userName, topic string) interface{} {
-
-			return userName == topic
-		},
+		AclProvider:      acl.TopicAlwaysVerifyType,
 	}
 
 	if err := mqttServer.ListenAndServe("tcp://127.0.0.1:8080"); err != nil {
@@ -123,12 +119,12 @@ func Test3(t *testing.T) {
 		Authenticator:    "mockSuccess", // always succeed
 		TopicsProvider:   "mem",         // keeps topic subscriptions in memory
 		AclProvider:      acl.TopicSetAuthType,
-		GetAuthFunc: func(userName, topic string) interface{} {
+		TopicAclFunc: func(userName, topic string) interface{} {
 			return true
 		},
 	}
 
-	if err := mqttServer.ListenAndServe("tcp://127.0.0.1:8081"); err != nil {
+	if err := mqttServer.ListenAndServe("tcp://127.0.0.1:8080"); err != nil {
 		fmt.Println("mqtt error", zap.Error(err))
 	}
 }
@@ -141,8 +137,8 @@ func Test4(t *testing.T) {
 	connOpts := &MQTT.ClientOptions{
 		ClientID:             "ds-live",
 		CleanSession:         true,
-		Username:             "fwd",
-		Password:             "zzz",
+		Username:             "sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64",
+		Password:             "1bcf468df513a81bf9fdf698694a327d5fba12b7",
 		MaxReconnectInterval: 1 * time.Second,
 		KeepAlive:            30 * time.Second,
 		AutoReconnect:        true,
@@ -151,7 +147,7 @@ func Test4(t *testing.T) {
 		TLSConfig:            tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert},
 		OnConnectionLost:     func(c MQTT.Client, err error) { fmt.Println("mqtt disconnected.", zap.Error(err)) },
 	}
-	connOpts.AddBroker("tcp://127.0.0.1:8081")
+	connOpts.AddBroker("tcp://127.0.0.1:7301")
 
 	mc := MQTT.NewClient(connOpts)
 	if token := mc.Connect(); token.Wait() && token.Error() != nil {
@@ -159,8 +155,9 @@ func Test4(t *testing.T) {
 		return
 	}
 	defer mc.Disconnect(12)
+
 	if token := mc.Subscribe("ds", 0, f); token.Wait() && token.Error() != nil {
-		fmt.Println("publish failed.", zap.Error(token.Error()))
+		fmt.Println("sub failed.", zap.Error(token.Error()))
 
 	} else {
 		t := token.(*MQTT.SubscribeToken)

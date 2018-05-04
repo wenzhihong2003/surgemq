@@ -20,6 +20,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -110,11 +111,12 @@ type Server struct {
 	// A indicator on whether this server has already checked configuration
 	configOnce sync.Once
 
-	subs        []interface{}
-	qoss        []byte
-	GetAuthFunc acl.GetAuthFunc
-	AclProvider string
-	aclManger   *acl.TopicAclManger
+	subs         []interface{}
+	qoss         []byte
+	TopicAclFunc acl.GetAuthFunc
+	AuthFunc     auth.AuthFunc
+	AclProvider  string
+	aclManger    *acl.TopicAclManger
 }
 
 // ListenAndServe listents to connections on the URI requested, and handles any
@@ -294,7 +296,9 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 	}
 
 	// Authenticate the user, if error, return error and exit
-	if err = this.authMgr.Authenticate(string(req.Username()), string(req.Password())); err != nil {
+	//password存着token
+	verify, clientInfo := this.authMgr.Authenticate(string(req.Password()))
+	if !verify {
 		resp.SetReturnCode(message.ErrBadUsernameOrPassword)
 		resp.SetSessionPresent(false)
 		writeMessage(conn, resp)
@@ -314,11 +318,11 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		ackTimeout:     this.AckTimeout,
 		timeoutRetries: this.TimeoutRetries,
 
-		conn:      conn,
-		sessMgr:   this.sessMgr,
-		topicsMgr: this.topicsMgr,
-		aclManger: this.aclManger,
-		userName:  string(req.Username()),
+		conn:       conn,
+		sessMgr:    this.sessMgr,
+		topicsMgr:  this.topicsMgr,
+		aclManger:  this.aclManger,
+		clientInfo: getClientInfo(clientInfo, string(req.Username())),
 	}
 
 	err = this.getSession(svc, req, resp)
@@ -349,6 +353,55 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 	return svc, nil
 }
 
+/*
+Password: bearer 1bcf468df513a81bf9fdf698694a327d5fba12b7
+Username: sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
+*/
+func getClientInfo(clientInfo *auth.ClientInfo, sdkInfoStr string) *acl.ClientInfo {
+
+	//todo 兼容旧版本没有token的
+	if clientInfo == nil {
+		return nil
+	}
+
+	if len(sdkInfoStr) == 0 {
+		return &acl.ClientInfo{Token: clientInfo.Token}
+	}
+
+	//解析sdkinfo
+	sdkInfo := &acl.SdkInfo{}
+	for _, str := range strings.Split(sdkInfoStr, "|") {
+		if kv := strings.Split(str, "="); len(kv) == 2 {
+			switch kv[0] {
+			case "sdk-lang":
+				sdkInfo.SdkLang = kv[1]
+				break
+			case "sdk-version":
+				sdkInfo.SdkVersion = kv[1]
+				break
+			case "sdk-arch":
+				sdkInfo.SdkArch = kv[1]
+				break
+			case "sdk-os":
+				sdkInfo.SdkOs = kv[1]
+				break
+			default:
+				break
+
+			}
+		}
+	}
+	//"sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64",
+
+	return &acl.ClientInfo{
+		Token:    clientInfo.Token,
+		UserName: clientInfo.UserName,
+		UserId:   clientInfo.UserId,
+		SdkInfo:  sdkInfo,
+	}
+
+}
+
 func (this *Server) checkConfiguration() error {
 	var err error
 
@@ -373,8 +426,9 @@ func (this *Server) checkConfiguration() error {
 			this.Authenticator = "mockSuccess"
 		}
 
-		this.authMgr, err = auth.NewManager(this.Authenticator)
+		this.authMgr, err = auth.NewManager(this.Authenticator, this.AuthFunc)
 		if err != nil {
+			fmt.Println(err.Error())
 			return
 		}
 
@@ -400,7 +454,7 @@ func (this *Server) checkConfiguration() error {
 			this.AclProvider = acl.TopicAlwaysVerifyType
 		}
 
-		this.aclManger, err = acl.NewTopicAclManger(this.AclProvider, this.GetAuthFunc)
+		this.aclManger, err = acl.NewTopicAclManger(this.AclProvider, this.TopicAclFunc)
 
 		return
 	})

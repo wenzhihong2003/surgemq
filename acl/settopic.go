@@ -12,29 +12,33 @@ type topicSetAuth struct {
 
 var _ Authenticator = (*topicSetAuth)(nil)
 
-func (this *topicSetAuth) CheckPub(userName, topic string) bool {
-	return this.CheckSub(userName, topic)
+func (this *topicSetAuth) CheckPub(clientInfo *ClientInfo, topic string) bool {
+	return true
 }
 
-func (this *topicSetAuth) CheckSub(userName, topic string) bool {
-	key := fmt.Sprintf(userTopicKeyFmt, userName, topic)
+func (this *topicSetAuth) CheckSub(clientInfo *ClientInfo, topic string) (success bool) {
+	token := clientInfo.Token
+	key := fmt.Sprintf(userTopicKeyFmt, token, topic)
 	if _, ok := this.topicM.Load(key); ok {
-		return true
+		success = true
+		return
 	}
 
-	exists, ok := this.f(userName, topic).(bool)
+	var ok bool
+	success, ok = this.f(token, topic).(bool)
 	if !ok {
-		return false
+		success = false
+		return
 	}
 
-	if exists {
+	if success {
 		this.topicM.Store(key, true)
 	}
 
-	return exists
+	return
 }
 
-func (this *topicSetAuth) ProcessUnSub(userName, topic string) {
+func (this *topicSetAuth) ProcessUnSub(clientInfo *ClientInfo, topic string) {
 	return
 }
 

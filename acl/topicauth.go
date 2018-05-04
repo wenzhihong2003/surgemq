@@ -2,6 +2,11 @@ package acl
 
 import (
 	"errors"
+
+	"fmt"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -13,10 +18,26 @@ const (
 
 type GetAuthFunc func(userName, topic string) interface{}
 
+type ClientInfo struct {
+	Token    string
+	UserName string
+	UserId   string
+	SdkInfo  *SdkInfo
+}
+
+//"sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64",
+type SdkInfo struct {
+	SdkLang    string
+	SdkVersion string
+	SdkArch    string
+	SdkOs      string
+}
+
+//sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
 type Authenticator interface {
-	CheckPub(userName, topic string) bool
-	CheckSub(userName, topic string) bool
-	ProcessUnSub(userName, topic string)
+	CheckPub(clientInfo *ClientInfo, topic string) bool
+	CheckSub(clientInfo *ClientInfo, topic string) bool
+	ProcessUnSub(clientInfo *ClientInfo, topic string)
 	SetAuthFunc(f GetAuthFunc)
 }
 
@@ -26,16 +47,16 @@ type TopicAclManger struct {
 	p Authenticator
 }
 
-func (this *TopicAclManger) CheckPub(userName, topic string) bool {
-	return this.p.CheckPub(userName, topic)
+func (this *TopicAclManger) CheckPub(clientInfo *ClientInfo, topic string) bool {
+	return this.p.CheckPub(clientInfo, topic)
 }
 
-func (this *TopicAclManger) CheckSub(userName, topic string) bool {
-	return this.p.CheckSub(userName, topic)
+func (this *TopicAclManger) CheckSub(clientInfo *ClientInfo, topic string) bool {
+	return this.p.CheckSub(clientInfo, topic)
 }
 
-func (this *TopicAclManger) ProcessUnSub(userName, topic string) {
-	this.p.ProcessUnSub(userName, topic)
+func (this *TopicAclManger) ProcessUnSub(clientInfo *ClientInfo, topic string) {
+	this.p.ProcessUnSub(clientInfo, topic)
 	return
 }
 
@@ -44,6 +65,9 @@ func (this *TopicAclManger) SetAuthFunc(f GetAuthFunc) {
 }
 
 func NewTopicAclManger(providerName string, f GetAuthFunc) (*TopicAclManger, error) {
+	if len(providerName) == 0 {
+		return nil, errors.New("providerName or f invalid !")
+	}
 	v, ok := providers[providerName]
 	if !ok {
 		return nil, errors.New("providers not exist this name:" + providerName)
@@ -73,4 +97,25 @@ func init() {
 	Register(TopicAlwaysVerifyType, topicAlwaysVerify)
 	Register(TopicNumAuthType, new(topicNumAuth))
 	Register(TopicSetAuthType, new(topicSetAuth))
+}
+
+func log(subPub, topic string, clientInfo *ClientInfo) {
+	if logger == nil {
+		fmt.Println("Logger == nil ")
+		return
+	}
+	logFields := []zapcore.Field{}
+	logFields = append(logFields, zap.String("topic", topic))
+	if clientInfo != nil {
+		logFields = append(logFields, zap.String("user-name", clientInfo.UserName))
+		logFields = append(logFields, zap.String("user-id", clientInfo.UserId))
+		if clientInfo.SdkInfo != nil {
+			//sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
+			logFields = append(logFields, zap.String("sdk-lang", clientInfo.SdkInfo.SdkLang))
+			logFields = append(logFields, zap.String("sdk-version", clientInfo.SdkInfo.SdkVersion))
+			logFields = append(logFields, zap.String("sdk-arch", clientInfo.SdkInfo.SdkArch))
+			logFields = append(logFields, zap.String("sdk-os", clientInfo.SdkInfo.SdkOs))
+		}
+	}
+	logger.Info(subPub, logFields...)
 }

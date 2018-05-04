@@ -15,27 +15,29 @@
 package auth
 
 import (
+	"fmt"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
-func TestMockSuccessAuthenticator(t *testing.T) {
-	require.NoError(t, mockSuccessAuthenticator.Authenticate("", ""))
+func TestGm3Authenticator(t *testing.T) {
+	mp := map[string]*ClientInfo{
+		"xxcx": &ClientInfo{
+			Token:    "fwd",
+			UserName: "v1",
+			UserId:   "1234",
+		},
+	}
 
-	require.NoError(t, providers["mockSuccess"].Authenticate("", ""))
+	f := func(token string) (bool, *ClientInfo) {
+		v, ok := mp[token]
+		return ok, v
+	}
+	manger, err := NewManager("gm3Auth", f)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
 
-	mgr, err := NewManager("mockSuccess")
-	require.NoError(t, err)
-	require.NoError(t, mgr.Authenticate("", ""))
-}
-
-func TestMockFailureAuthenticator(t *testing.T) {
-	require.Error(t, mockFailureAuthenticator.Authenticate("", ""))
-
-	require.Error(t, providers["mockFailure"].Authenticate("", ""))
-
-	mgr, err := NewManager("mockFailure")
-	require.NoError(t, err)
-	require.Error(t, mgr.Authenticate("", ""))
+	verify, clientInfo := manger.Authenticate("")
+	fmt.Println(verify, clientInfo)
 }

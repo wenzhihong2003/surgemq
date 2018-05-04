@@ -31,7 +31,7 @@ func Test1(t *testing.T) {
 		TLSConfig:            tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert},
 		OnConnectionLost:     func(c MQTT.Client, err error) { fmt.Println("mqtt disconnected.", zap.Error(err)) },
 	}
-	connOpts.AddBroker("tcp://testserver:8011")
+	connOpts.AddBroker("tcp://127.0.0.1:8080")
 
 	mc := MQTT.NewClient(connOpts)
 	if token := mc.Connect(); token.Wait() && token.Error() != nil {
@@ -86,7 +86,7 @@ func Test2(t *testing.T) {
 		Authenticator:    "mockSuccess", // always succeed
 		TopicsProvider:   "mem",         // keeps topic subscriptions in memory
 		AclProvider:      acl.TopicNumAuthType,
-		TopicAclFunc: func(userName, topic string) interface{} {
+		TopicAclFunc: func(info *acl.ClientInfo, topic string) interface{} {
 			return 1
 		},
 	}
@@ -119,8 +119,8 @@ func Test3(t *testing.T) {
 		Authenticator:    "mockSuccess", // always succeed
 		TopicsProvider:   "mem",         // keeps topic subscriptions in memory
 		AclProvider:      acl.TopicSetAuthType,
-		TopicAclFunc: func(userName, topic string) interface{} {
-			return true
+		TopicAclFunc: func(info *acl.ClientInfo, topic string) interface{} {
+			return false
 		},
 	}
 

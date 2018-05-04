@@ -16,13 +16,15 @@ const (
 	userTopicKeyFmt       = "%s:%s"
 )
 
-type GetAuthFunc func(userName, topic string) interface{}
+type GetAuthFunc func(clientInfo *ClientInfo, topic string) interface{}
 
 type ClientInfo struct {
-	Token    string
+	Token    string // mqtt password
 	UserName string
 	UserId   string
-	SdkInfo  map[string]string
+	ClientId string            //mqtt clientId
+	SdkInfo  map[string]string //from mqtt userName
+
 }
 
 //sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64

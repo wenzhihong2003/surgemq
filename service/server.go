@@ -322,7 +322,7 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		sessMgr:    this.sessMgr,
 		topicsMgr:  this.topicsMgr,
 		aclManger:  this.aclManger,
-		clientInfo: getClientInfo(clientInfo, string(req.Username())),
+		clientInfo: getClientInfo(clientInfo, string(req.Username()), string(req.ClientId())),
 	}
 
 	err = this.getSession(svc, req, resp)
@@ -357,7 +357,7 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 Password: bearer 1bcf468df513a81bf9fdf698694a327d5fba12b7
 Username: sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
 */
-func getClientInfo(clientInfo *auth.ClientInfo, sdkInfoStr string) *acl.ClientInfo {
+func getClientInfo(clientInfo *auth.ClientInfo, sdkInfoStr, clientId string) *acl.ClientInfo {
 	//todo 兼容旧版本没有token的
 	if clientInfo == nil {
 		return nil
@@ -379,6 +379,7 @@ func getClientInfo(clientInfo *auth.ClientInfo, sdkInfoStr string) *acl.ClientIn
 		UserName: clientInfo.UserName,
 		UserId:   clientInfo.UserId,
 		SdkInfo:  sdkInfo,
+		ClientId: clientId,
 	}
 
 }

@@ -30,7 +30,7 @@ func (this *topicNumAuth) CheckSub(clientInfo *ClientInfo, topic string) (succes
 		return true
 	}
 
-	totalLimit, ok := this.f(userName, topic).(int)
+	totalLimit, ok := this.f(clientInfo, topic).(int)
 	if !ok || totalLimit == 0 {
 		return
 	}

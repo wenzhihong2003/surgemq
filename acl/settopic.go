@@ -27,7 +27,7 @@ func (this *topicSetAuth) CheckSub(clientInfo *ClientInfo, topic string) (succes
 		return
 	}
 
-	success = this.f(token, topic).(bool)
+	success = this.f(clientInfo, topic).(bool)
 	this.topicM.Store(key, success)
 
 	return

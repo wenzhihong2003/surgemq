@@ -5,6 +5,7 @@ import (
 
 	"fmt"
 
+	"github.com/surgemq/message"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -19,12 +20,11 @@ const (
 type GetAuthFunc func(clientInfo *ClientInfo, topic string) interface{}
 
 type ClientInfo struct {
-	Token    string // mqtt password
-	UserName string
-	UserId   string
-	ClientId string            //mqtt clientId
-	SdkInfo  map[string]string //from mqtt userName
-
+	GmToken        string // mqtt password
+	GmUserName     string
+	GmUserId       string
+	GmSdkInfo      map[string]string //from mqtt userName
+	ConnectMessage *message.ConnectMessage
 }
 
 //sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
@@ -101,10 +101,10 @@ func log(subPub, topic string, clientInfo *ClientInfo) {
 	logFields := []zapcore.Field{}
 	logFields = append(logFields, zap.String("topic", topic))
 	if clientInfo != nil {
-		logFields = append(logFields, zap.String("user-name", clientInfo.UserName))
-		logFields = append(logFields, zap.String("user-id", clientInfo.UserId))
+		logFields = append(logFields, zap.String("user-name", clientInfo.GmUserName))
+		logFields = append(logFields, zap.String("user-id", clientInfo.GmUserId))
 
-		for k, v := range clientInfo.SdkInfo {
+		for k, v := range clientInfo.GmSdkInfo {
 			logFields = append(logFields, zap.String(k, v))
 		}
 	}

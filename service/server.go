@@ -322,7 +322,7 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		sessMgr:    this.sessMgr,
 		topicsMgr:  this.topicsMgr,
 		aclManger:  this.aclManger,
-		clientInfo: getClientInfo(clientInfo, string(req.Username()), string(req.ClientId())),
+		clientInfo: getClientInfo(clientInfo, req),
 	}
 
 	err = this.getSession(svc, req, resp)
@@ -357,14 +357,15 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 Password: bearer 1bcf468df513a81bf9fdf698694a327d5fba12b7
 Username: sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
 */
-func getClientInfo(clientInfo *auth.ClientInfo, sdkInfoStr, clientId string) *acl.ClientInfo {
+func getClientInfo(clientInfo *auth.ClientInfo, req *message.ConnectMessage) *acl.ClientInfo {
 	//todo 兼容旧版本没有token的
 	if clientInfo == nil {
 		return nil
 	}
 
+	sdkInfoStr := string(req.Username())
 	if len(sdkInfoStr) == 0 {
-		return &acl.ClientInfo{Token: clientInfo.Token}
+		return &acl.ClientInfo{GmToken: clientInfo.Token}
 	}
 
 	//解析sdkinfo
@@ -375,11 +376,11 @@ func getClientInfo(clientInfo *auth.ClientInfo, sdkInfoStr, clientId string) *ac
 		}
 	}
 	return &acl.ClientInfo{
-		Token:    clientInfo.Token,
-		UserName: clientInfo.UserName,
-		UserId:   clientInfo.UserId,
-		SdkInfo:  sdkInfo,
-		ClientId: clientId,
+		GmToken:        clientInfo.Token,
+		GmUserName:     clientInfo.UserName,
+		GmUserId:       clientInfo.UserId,
+		GmSdkInfo:      sdkInfo,
+		ConnectMessage: req,
 	}
 
 }

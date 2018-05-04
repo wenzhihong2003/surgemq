@@ -20,7 +20,7 @@ func (this *topicSetAuth) CheckSub(clientInfo *ClientInfo, topic string) (succes
 	if clientInfo == nil {
 		return
 	}
-	token := clientInfo.Token
+	token := clientInfo.GmToken
 	key := fmt.Sprintf(userTopicKeyFmt, token, topic)
 	if v, ok := this.topicM.Load(key); ok {
 		success = v.(bool)

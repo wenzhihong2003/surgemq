@@ -23,7 +23,7 @@ func (this *topicNumAuth) CheckSub(clientInfo *ClientInfo, topic string) (succes
 		log("SUB", topic, clientInfo)
 	}()
 
-	userName := clientInfo.Token
+	userName := clientInfo.GmToken
 	key := fmt.Sprintf(userTopicKeyFmt, userName, topic)
 	if _, ok := this.topicUserM.Load(key); ok {
 		success = true
@@ -58,7 +58,7 @@ func (this *topicNumAuth) ProcessUnSub(clientInfo *ClientInfo, topic string) {
 		log("UNSUB", topic, clientInfo)
 	}()
 
-	userName := clientInfo.Token
+	userName := clientInfo.GmToken
 	key := fmt.Sprintf(userTopicKeyFmt, userName, topic)
 	if _, ok := this.topicUserM.Load(key); !ok {
 		return

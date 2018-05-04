@@ -120,7 +120,7 @@ func Test3(t *testing.T) {
 		TopicsProvider:   "mem",         // keeps topic subscriptions in memory
 		AclProvider:      acl.TopicSetAuthType,
 		TopicAclFunc: func(info *acl.ClientInfo, topic string) interface{} {
-			return false
+			return true
 		},
 	}
 

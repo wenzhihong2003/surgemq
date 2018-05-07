@@ -101,8 +101,8 @@ func log(subPub, topic string, clientInfo *ClientInfo) {
 	logFields := []zapcore.Field{}
 	logFields = append(logFields, zap.String("topic", topic))
 	if clientInfo != nil {
-		logFields = append(logFields, zap.String("user-name", clientInfo.GmUserName))
-		logFields = append(logFields, zap.String("user-id", clientInfo.GmUserId))
+		//logFields = append(logFields, zap.String("user-name", clientInfo.GmUserName))
+		logFields = append(logFields, zap.String("userid", clientInfo.GmUserId))
 
 		for k, v := range clientInfo.GmSdkInfo {
 			logFields = append(logFields, zap.String(k, v))

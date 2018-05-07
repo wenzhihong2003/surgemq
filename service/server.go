@@ -297,7 +297,7 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 
 	// Authenticate the user, if error, return error and exit
 	//password存着token
-	verify, clientInfo := this.authMgr.Authenticate(string(req.Password()))
+	verify, clientInfo := this.authMgr.Authenticate(string(req.Password()), string(req.Username()))
 	if !verify {
 		resp.SetReturnCode(message.ErrBadUsernameOrPassword)
 		resp.SetSessionPresent(false)

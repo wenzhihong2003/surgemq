@@ -38,6 +38,6 @@ func TestGm3Authenticator(t *testing.T) {
 		return
 	}
 
-	verify, clientInfo := manger.Authenticate("")
+	verify, clientInfo := manger.Authenticate("", "")
 	fmt.Println(verify, clientInfo)
 }

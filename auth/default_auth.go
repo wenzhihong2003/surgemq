@@ -28,7 +28,7 @@ func init() {
 	Register("mockFailure", mockFailureAuthenticator)
 }
 
-func (this mockAuthenticator) Authenticate(token string) (bool, *ClientInfo) {
+func (this mockAuthenticator) Authenticate(token, userName string) (bool, *ClientInfo) {
 
 	return this == mockSuccessAuthenticator, &ClientInfo{Token: token}
 }

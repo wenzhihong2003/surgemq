@@ -8,7 +8,7 @@ type gm3Authenticator struct {
 
 type AuthFunc func(token string) (bool, *ClientInfo)
 
-func (this *gm3Authenticator) Authenticate(token string) (bool, *ClientInfo) {
+func (this *gm3Authenticator) Authenticate(token, userName string) (bool, *ClientInfo) {
 	//todo 兼容旧版本，没带token的不需要验证
 	if len(token) == 0 {
 		return true, nil

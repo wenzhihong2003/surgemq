@@ -33,7 +33,7 @@ type ClientInfo struct {
 }
 
 type Authenticator interface {
-	Authenticate(token string) (bool, *ClientInfo)
+	Authenticate(token, userName string) (bool, *ClientInfo)
 	SetAuthFunc(f AuthFunc)
 }
 
@@ -67,8 +67,8 @@ func NewManager(providerName string, authFunc AuthFunc) (*Manager, error) {
 	return &Manager{p: p}, nil
 }
 
-func (this *Manager) Authenticate(token string) (bool, *ClientInfo) {
-	return this.p.Authenticate(token)
+func (this *Manager) Authenticate(token, userName string) (bool, *ClientInfo) {
+	return this.p.Authenticate(token, userName)
 }
 
 func (this *Manager) SetAuthFunc(f AuthFunc) {

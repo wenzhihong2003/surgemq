@@ -21,8 +21,8 @@ func Test1(t *testing.T) {
 	connOpts := &MQTT.ClientOptions{
 		ClientID:             "ds-live",
 		CleanSession:         true,
-		Username:             "sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64",
-		Password:             "1bcf468df513a81bf9fdf698694a327d5fba12b7",
+		Username:             "",
+		Password:             "",
 		MaxReconnectInterval: 1 * time.Second,
 		KeepAlive:            30 * time.Second,
 		AutoReconnect:        true,
@@ -31,7 +31,7 @@ func Test1(t *testing.T) {
 		TLSConfig:            tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert},
 		OnConnectionLost:     func(c MQTT.Client, err error) { fmt.Println("mqtt disconnected.", zap.Error(err)) },
 	}
-	connOpts.AddBroker("tcp://127.0.0.1:8080")
+	connOpts.AddBroker("tcp://testserver:8011")
 
 	mc := MQTT.NewClient(connOpts)
 	if token := mc.Connect(); token.Wait() && token.Error() != nil {
@@ -40,12 +40,11 @@ func Test1(t *testing.T) {
 	}
 
 	defer mc.Disconnect(12)
-	if token := mc.Subscribe("fwd", 0, f); token.Wait() && token.Error() != nil {
-		fmt.Println("publish failed.", zap.Error(token.Error()))
+	for {
+		if token := mc.Publish("ds", 0, false, "xx"); token.Wait() && token.Error() != nil {
+			fmt.Println("publish failed.", zap.Error(token.Error()))
 
-	} else {
-		t := token.(*MQTT.SubscribeToken)
-		fmt.Println(t.Result())
+		}
 	}
 
 	if token := mc.Subscribe("dsx", 0, f); token.Wait() && token.Error() != nil {
@@ -130,15 +129,15 @@ func Test3(t *testing.T) {
 }
 
 func Test4(t *testing.T) {
-	var f MQTT.MessageHandler = func(MQTT.Client, MQTT.Message) {
-		fmt.Println("rece")
+	var f MQTT.MessageHandler = func(c MQTT.Client, m MQTT.Message) {
+		fmt.Println("rece:", m.Topic())
 	}
-
+	var ch chan int
 	connOpts := &MQTT.ClientOptions{
 		ClientID:             "ds-live",
 		CleanSession:         true,
 		Username:             "sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64",
-		Password:             "1bcf468df513a81bf9fdf698694a327d5fba12b7",
+		Password:             "",
 		MaxReconnectInterval: 1 * time.Second,
 		KeepAlive:            30 * time.Second,
 		AutoReconnect:        true,
@@ -164,4 +163,5 @@ func Test4(t *testing.T) {
 		fmt.Println(t.Result())
 	}
 
+	<-ch
 }

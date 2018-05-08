@@ -2,7 +2,6 @@ package acl
 
 import (
 	"errors"
-
 	"fmt"
 
 	"github.com/surgemq/message"
@@ -93,20 +92,38 @@ func init() {
 	Register(TopicSetAuthType, new(topicSetAuth))
 }
 
+const (
+	userId     = "userid"
+	sdkArch    = "sdk-arch"
+	sdkOs      = "sdk-os"
+	sdkLang    = "sdk-lang"
+	sdkVersion = "sdk-version"
+	unKnown    = "unknown"
+)
+
 func log(subPub, topic string, clientInfo *ClientInfo) {
 	if logger == nil {
 		fmt.Println("Logger == nil ")
 		return
 	}
 	logFields := []zapcore.Field{}
+	logFields = append(logFields, zap.String("type", subPub))
 	logFields = append(logFields, zap.String("topic", topic))
+	logMap := make(map[string]string)
+	logMap[userId] = unKnown
+	logMap[sdkArch] = unKnown
+	logMap[sdkOs] = unKnown
+	logMap[sdkLang] = unKnown
+	logMap[sdkVersion] = unKnown
 	if clientInfo != nil {
 		//logFields = append(logFields, zap.String("user-name", clientInfo.GmUserName))
-		logFields = append(logFields, zap.String("userid", clientInfo.GmUserId))
-
+		logMap[userId] = clientInfo.GmUserId
 		for k, v := range clientInfo.GmSdkInfo {
-			logFields = append(logFields, zap.String(k, v))
+			logMap[k] = v
 		}
 	}
-	logger.Info(subPub, logFields...)
+	for k, v := range logMap {
+		logFields = append(logFields, zap.String(k, v))
+	}
+	logger.Info("acl", logFields...)
 }

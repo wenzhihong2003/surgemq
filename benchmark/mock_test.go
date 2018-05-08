@@ -147,7 +147,7 @@ func Test4(t *testing.T) {
 		TLSConfig:            tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert},
 		OnConnectionLost:     func(c MQTT.Client, err error) { fmt.Println("mqtt disconnected.", zap.Error(err)) },
 	}
-	connOpts.AddBroker("tcp://127.0.0.1:7301")
+	connOpts.AddBroker("tcp://testserver:8011")
 
 	mc := MQTT.NewClient(connOpts)
 	if token := mc.Connect(); token.Wait() && token.Error() != nil {

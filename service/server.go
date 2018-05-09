@@ -25,6 +25,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"crypto/tls"
+	"log"
+
+	"crypto/x509"
+	"io/ioutil"
+
 	"github.com/fangwendong/surgemq/acl"
 	"github.com/fangwendong/surgemq/auth"
 	"github.com/fangwendong/surgemq/sessions"
@@ -140,6 +146,153 @@ func (this *Server) ListenAndServe(uri string) error {
 
 	this.ln, err = net.Listen(u.Scheme, u.Host)
 	if err != nil {
+		return err
+	}
+	defer this.ln.Close()
+
+	glog.Infof("server/ListenAndServe: server is ready...")
+
+	var tempDelay time.Duration // how long to sleep on accept failure
+
+	for {
+		conn, err := this.ln.Accept()
+
+		if err != nil {
+			// http://zhen.org/blog/graceful-shutdown-of-go-net-dot-listeners/
+			select {
+			case <-this.quit:
+				return nil
+
+			default:
+			}
+
+			// Borrowed from go1.3.3/src/pkg/net/http/server.go:1699
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				if tempDelay == 0 {
+					tempDelay = 5 * time.Millisecond
+				} else {
+					tempDelay *= 2
+				}
+				if max := 1 * time.Second; tempDelay > max {
+					tempDelay = max
+				}
+				glog.Errorf("server/ListenAndServe: Accept error: %v; retrying in %v", err, tempDelay)
+				time.Sleep(tempDelay)
+				continue
+			}
+			return err
+		}
+
+		go this.handleConnection(conn)
+	}
+}
+
+//1.
+func (this *Server) TlsListenAndServeWithByte(uri string, certPEMBlock, keyPEMBlock []byte) error {
+	defer atomic.CompareAndSwapInt32(&this.running, 1, 0)
+
+	if !atomic.CompareAndSwapInt32(&this.running, 0, 1) {
+		return fmt.Errorf("server/ListenAndServe: Server is already running")
+	}
+
+	this.quit = make(chan struct{})
+
+	u, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+
+	//server 端加入 tls
+	cert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	config := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientAuth:   tls.NoClientCert,
+	}
+	this.ln, err = tls.Listen("tcp", u.Host, config)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	defer this.ln.Close()
+
+	glog.Infof("server/ListenAndServe: server is ready...")
+
+	var tempDelay time.Duration // how long to sleep on accept failure
+
+	for {
+		conn, err := this.ln.Accept()
+
+		if err != nil {
+			// http://zhen.org/blog/graceful-shutdown-of-go-net-dot-listeners/
+			select {
+			case <-this.quit:
+				return nil
+
+			default:
+			}
+
+			// Borrowed from go1.3.3/src/pkg/net/http/server.go:1699
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				if tempDelay == 0 {
+					tempDelay = 5 * time.Millisecond
+				} else {
+					tempDelay *= 2
+				}
+				if max := 1 * time.Second; tempDelay > max {
+					tempDelay = max
+				}
+				glog.Errorf("server/ListenAndServe: Accept error: %v; retrying in %v", err, tempDelay)
+				time.Sleep(tempDelay)
+				continue
+			}
+			return err
+		}
+
+		go this.handleConnection(conn)
+	}
+}
+
+//2.
+func (this *Server) TlsListenAndServeWithFile(uri, ca, crt, key string) error {
+	defer atomic.CompareAndSwapInt32(&this.running, 1, 0)
+
+	if !atomic.CompareAndSwapInt32(&this.running, 0, 1) {
+		return fmt.Errorf("server/ListenAndServe: Server is already running")
+	}
+
+	this.quit = make(chan struct{})
+
+	u, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+
+	//read crt and key
+	certpool := x509.NewCertPool()
+	pemCerts, err := ioutil.ReadFile(ca)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	certpool.AppendCertsFromPEM(pemCerts)
+	//server 端加入 tls
+	cert, err := tls.LoadX509KeyPair(crt, key)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	config := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    certpool,
+	}
+	this.ln, err = tls.Listen("tcp", u.Host, config)
+	if err != nil {
+		log.Println(err)
 		return err
 	}
 	defer this.ln.Close()

@@ -187,7 +187,7 @@ func (this *Server) ListenAndServe(uri string) error {
 	}
 }
 
-//1.
+//1. tls读取服务器证书，没有根证书的类型
 func (this *Server) TlsListenAndServeWithByte(uri string, certPEMBlock, keyPEMBlock []byte) error {
 	defer atomic.CompareAndSwapInt32(&this.running, 1, 0)
 
@@ -256,7 +256,7 @@ func (this *Server) TlsListenAndServeWithByte(uri string, certPEMBlock, keyPEMBl
 	}
 }
 
-//2.
+//2.tls 服务器证书和根证书并用的类型
 func (this *Server) TlsListenAndServeWithFile(uri, ca, crt, key string) error {
 	defer atomic.CompareAndSwapInt32(&this.running, 1, 0)
 

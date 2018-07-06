@@ -17,6 +17,7 @@ func (this *topicNumAuth) CheckPub(clientInfo *ClientInfo, topic string) bool {
 	return true
 }
 
+//需要区分tick和bar
 func (this *topicNumAuth) CheckSub(clientInfo *ClientInfo, topic string) (success bool) {
 
 	if clientInfo == nil {
@@ -27,7 +28,6 @@ func (this *topicNumAuth) CheckSub(clientInfo *ClientInfo, topic string) (succes
 		log("SUB", topic, clientInfo)
 	}()
 
-
 	// fmt.Println("clientInfo",*clientInfo)
 	userName := clientInfo.GmToken
 	key := fmt.Sprintf(userTopicKeyFmt, userName, topic)
@@ -36,10 +36,7 @@ func (this *topicNumAuth) CheckSub(clientInfo *ClientInfo, topic string) (succes
 		return true
 	}
 
-	totalLimit, ok := this.f(clientInfo, topic).(int)
-	if !ok || totalLimit == 0 {
-		return
-	}
+	totalLimit := clientInfo.SubTopicLimit
 
 	totalNow, ok := this.topicTotalNowM.Load(userName)
 	if !ok {
@@ -63,7 +60,7 @@ func (this *topicNumAuth) ProcessUnSub(clientInfo *ClientInfo, topic string) {
 	if clientInfo == nil {
 		return
 	}
-	
+
 	defer func() {
 		log("UNSUB", topic, clientInfo)
 	}()

@@ -24,6 +24,7 @@ type ClientInfo struct {
 	GmUserId       string
 	GmSdkInfo      map[string]string //from mqtt userName
 	ConnectMessage *message.ConnectMessage
+	SubTopicLimit  int
 }
 
 //sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64

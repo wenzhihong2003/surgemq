@@ -27,9 +27,10 @@ var (
 )
 
 type ClientInfo struct {
-	Token    string
-	UserName string
-	UserId   string
+	Token         string
+	UserName      string
+	UserId        string
+	SubTopicLimit int
 }
 
 type Authenticator interface {

@@ -534,6 +534,7 @@ func getClientInfo(clientInfo *auth.ClientInfo, req *message.ConnectMessage) *ac
 		GmUserId:       clientInfo.UserId,
 		GmSdkInfo:      sdkInfo,
 		ConnectMessage: req,
+		SubTopicLimit:  clientInfo.SubTopicLimit,
 	}
 
 }

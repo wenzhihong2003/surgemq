@@ -132,14 +132,14 @@ func Test3(t *testing.T) {
 
 func Test4(t *testing.T) {
 	var f MQTT.MessageHandler = func(c MQTT.Client, m MQTT.Message) {
-		fmt.Println("rece:", m.Topic())
+		// fmt.Println("rece:", m.Topic())
 	}
 	var ch chan int
 	connOpts := &MQTT.ClientOptions{
 		ClientID:             "ds-live",
 		CleanSession:         true,
 		Username:             "sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64",
-		Password:             "",
+		Password:             "faa4e334845d00bbb2e03ee524eda540ce2672dd",
 		MaxReconnectInterval: 1 * time.Second,
 		KeepAlive:            30 * time.Second,
 		AutoReconnect:        true,
@@ -148,21 +148,52 @@ func Test4(t *testing.T) {
 		TLSConfig:            tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert},
 		OnConnectionLost:     func(c MQTT.Client, err error) { fmt.Println("mqtt disconnected.", zap.Error(err)) },
 	}
-	connOpts.AddBroker("tcp://testserver:8011")
+	connOpts.AddBroker("tcp://ds-live:7021")
 
 	mc := MQTT.NewClient(connOpts)
 	if token := mc.Connect(); token.Wait() && token.Error() != nil {
 		fmt.Println("mqtt connection failed.", zap.Error(token.Error()))
 		return
 	}
-	defer mc.Disconnect(12)
+	// defer mc.Disconnect(12)
 
-	if token := mc.Subscribe("ds", 0, f); token.Wait() && token.Error() != nil {
-		fmt.Println("sub failed.", zap.Error(token.Error()))
+	ts := make([]string, 1000)
 
-	} else {
-		t := token.(*MQTT.SubscribeToken)
-		fmt.Println(t.Result())
+	for i := 0; i <= 1000; i++ {
+		if 0 < i && i < 10 {
+			ts[i] = fmt.Sprintf("pb/data.api.Tick/SZSE/00000%d", i)
+			continue
+		}
+
+		if i < 100 {
+			ts[i] = fmt.Sprintf("pb/data.api.Tick/SZSE/0000%d", i)
+			continue
+		}
+
+		if i > 100 && i < 1000 {
+			ts[i] = fmt.Sprintf("pb/data.api.Tick/SZSE/000%d", i)
+			continue
+		}
+	}
+	for j := 1; j <= 900; j++ {
+		go func(i int) {
+			if token := mc.Subscribe(ts[i], 0, f); token.Wait() && token.Error() != nil {
+				fmt.Println("sub failed.", zap.Error(token.Error()))
+
+			} else {
+				t := token.(*MQTT.SubscribeToken)
+				fmt.Println(t.Result())
+			}
+		}(j)
+
+		// if token := mc.Subscribe(ts[j], 0, f); token.Wait() && token.Error() != nil {
+		// 	fmt.Println("sub failed.", zap.Error(token.Error()))
+		//
+		// } else {
+		// 	t := token.(*MQTT.SubscribeToken)
+		// 	fmt.Println(t.Result())
+		// }
+
 	}
 
 	<-ch

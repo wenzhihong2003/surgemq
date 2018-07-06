@@ -19,10 +19,16 @@ func (this *topicNumAuth) CheckPub(clientInfo *ClientInfo, topic string) bool {
 
 func (this *topicNumAuth) CheckSub(clientInfo *ClientInfo, topic string) (success bool) {
 
+	if clientInfo == nil {
+		return false
+	}
+
 	defer func() {
 		log("SUB", topic, clientInfo)
 	}()
 
+
+	// fmt.Println("clientInfo",*clientInfo)
 	userName := clientInfo.GmToken
 	key := fmt.Sprintf(userTopicKeyFmt, userName, topic)
 	if _, ok := this.topicUserM.Load(key); ok {
@@ -54,6 +60,10 @@ func (this *topicNumAuth) CheckSub(clientInfo *ClientInfo, topic string) (succes
 }
 
 func (this *topicNumAuth) ProcessUnSub(clientInfo *ClientInfo, topic string) {
+	if clientInfo == nil {
+		return
+	}
+	
 	defer func() {
 		log("UNSUB", topic, clientInfo)
 	}()

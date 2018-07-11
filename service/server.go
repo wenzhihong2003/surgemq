@@ -149,7 +149,7 @@ func (this *Server) ListenAndServe(uri string) error {
 		return err
 	}
 	defer this.ln.Close()
-
+	defer this.Close()
 	glog.Infof("server/ListenAndServe: server is ready...")
 
 	var tempDelay time.Duration // how long to sleep on accept failure
@@ -187,7 +187,7 @@ func (this *Server) ListenAndServe(uri string) error {
 	}
 }
 
-//1. tls读取服务器证书，没有根证书的类型
+// 1. tls读取服务器证书，没有根证书的类型
 func (this *Server) TlsListenAndServeWithByte(uri string, certPEMBlock, keyPEMBlock []byte) error {
 	defer atomic.CompareAndSwapInt32(&this.running, 1, 0)
 
@@ -202,7 +202,7 @@ func (this *Server) TlsListenAndServeWithByte(uri string, certPEMBlock, keyPEMBl
 		return err
 	}
 
-	//server 端加入 tls
+	// server 端加入 tls
 	cert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
 	if err != nil {
 		fmt.Println(err)
@@ -256,7 +256,7 @@ func (this *Server) TlsListenAndServeWithByte(uri string, certPEMBlock, keyPEMBl
 	}
 }
 
-//2.tls 服务器证书和根证书并用的类型
+// 2.tls 服务器证书和根证书并用的类型
 func (this *Server) TlsListenAndServeWithFile(uri, ca, crt, key string) error {
 	defer atomic.CompareAndSwapInt32(&this.running, 1, 0)
 
@@ -271,7 +271,7 @@ func (this *Server) TlsListenAndServeWithFile(uri, ca, crt, key string) error {
 		return err
 	}
 
-	//read crt and key
+	// read crt and key
 	certpool := x509.NewCertPool()
 	pemCerts, err := ioutil.ReadFile(ca)
 	if err != nil {
@@ -279,7 +279,7 @@ func (this *Server) TlsListenAndServeWithFile(uri, ca, crt, key string) error {
 		return err
 	}
 	certpool.AppendCertsFromPEM(pemCerts)
-	//server 端加入 tls
+	// server 端加入 tls
 	cert, err := tls.LoadX509KeyPair(crt, key)
 	if err != nil {
 		fmt.Println(err)
@@ -356,7 +356,7 @@ func (this *Server) Publish(msg *message.PublishMessage, onComplete OnCompleteFu
 
 	msg.SetRetain(false)
 
-	//glog.Debugf("(server) Publishing to topic %q and %d subscribers", string(msg.Topic()), len(this.subs))
+	// glog.Debugf("(server) Publishing to topic %q and %d subscribers", string(msg.Topic()), len(this.subs))
 	for _, s := range this.subs {
 		if s != nil {
 			fn, ok := s.(*OnPublishFunc)
@@ -440,7 +440,7 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 	req, err := getConnectMessage(conn)
 	if err != nil {
 		if cerr, ok := err.(message.ConnackCode); ok {
-			//glog.Debugf("request   message: %s\nresponse message: %s\nerror           : %v", mreq, resp, err)
+			// glog.Debugf("request   message: %s\nresponse message: %s\nerror           : %v", mreq, resp, err)
 			resp.SetReturnCode(cerr)
 			resp.SetSessionPresent(false)
 			writeMessage(conn, resp)
@@ -449,7 +449,7 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 	}
 
 	// Authenticate the user, if error, return error and exit
-	//password存着token
+	// password存着token
 	verify, clientInfo := this.authMgr.Authenticate(string(req.Password()), string(req.Username()))
 	if !verify {
 		resp.SetReturnCode(message.ErrBadUsernameOrPassword)
@@ -497,9 +497,9 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		return nil, err
 	}
 
-	//this.mu.Lock()
-	//this.svcs = append(this.svcs, svc)
-	//this.mu.Unlock()
+	// this.mu.Lock()
+	// this.svcs = append(this.svcs, svc)
+	// this.mu.Unlock()
 
 	glog.Infof("(%s) server/handleConnection: Connection established.", svc.cid())
 
@@ -511,7 +511,7 @@ Password: bearer 1bcf468df513a81bf9fdf698694a327d5fba12b7
 Username: sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
 */
 func getClientInfo(clientInfo *auth.ClientInfo, req *message.ConnectMessage) *acl.ClientInfo {
-	//todo 兼容旧版本没有token的
+	// todo 兼容旧版本没有token的
 	if clientInfo == nil {
 		return nil
 	}
@@ -521,7 +521,7 @@ func getClientInfo(clientInfo *auth.ClientInfo, req *message.ConnectMessage) *ac
 		return &acl.ClientInfo{GmToken: clientInfo.Token}
 	}
 
-	//解析sdkinfo
+	// 解析sdkinfo
 	sdkInfo := map[string]string{}
 	for _, str := range strings.Split(sdkInfoStr, "|") {
 		if kv := strings.Split(str, "="); len(kv) == 2 {

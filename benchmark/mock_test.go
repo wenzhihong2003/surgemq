@@ -16,9 +16,9 @@ import (
 )
 
 func Test1(t *testing.T) {
-	var f MQTT.MessageHandler = func(MQTT.Client, MQTT.Message) {
-		fmt.Println("rece")
-	}
+	// var f MQTT.MessageHandler = func(MQTT.Client, MQTT.Message) {
+	// 	fmt.Println("rece")
+	// }
 
 	connOpts := &MQTT.ClientOptions{
 		ClientID:             "ds-live",
@@ -33,7 +33,7 @@ func Test1(t *testing.T) {
 		TLSConfig:            tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert},
 		OnConnectionLost:     func(c MQTT.Client, err error) { fmt.Println("mqtt disconnected.", zap.Error(err)) },
 	}
-	connOpts.AddBroker("tcp://testserver:8011")
+	connOpts.AddBroker("tcp://ds-live:7021")
 
 	mc := MQTT.NewClient(connOpts)
 	if token := mc.Connect(); token.Wait() && token.Error() != nil {
@@ -43,38 +43,13 @@ func Test1(t *testing.T) {
 
 	defer mc.Disconnect(12)
 	for {
+		time.Sleep(time.Millisecond * 10)
 		if token := mc.Publish("ds", 0, false, "xx"); token.Wait() && token.Error() != nil {
 			fmt.Println("publish failed.", zap.Error(token.Error()))
 
+		} else {
+			fmt.Println("publish sucess !")
 		}
-	}
-
-	if token := mc.Subscribe("dsx", 0, f); token.Wait() && token.Error() != nil {
-		fmt.Println("publish failed.", zap.Error(token.Error()))
-
-	} else {
-		t := token.(*MQTT.SubscribeToken)
-		fmt.Println(t.Result())
-	}
-
-	if token := mc.Subscribe("ds", 0, f); token.Wait() && token.Error() != nil {
-		fmt.Println("publish failed.", zap.Error(token.Error()))
-
-	} else {
-		t := token.(*MQTT.SubscribeToken)
-		fmt.Println(t.Result())
-	}
-
-	if token := mc.Unsubscribe("ds"); token.Wait() && token.Error() != nil {
-		fmt.Println("publish failed.", zap.Error(token.Error()))
-
-	}
-	if token := mc.Subscribe("dsx", 0, f); token.Wait() && token.Error() != nil {
-		fmt.Println("publish failed.", zap.Error(token.Error()))
-
-	} else {
-		t := token.(*MQTT.SubscribeToken)
-		fmt.Println(t.Result())
 	}
 
 }
@@ -132,7 +107,7 @@ func Test3(t *testing.T) {
 
 func Test4(t *testing.T) {
 	var f MQTT.MessageHandler = func(c MQTT.Client, m MQTT.Message) {
-		// fmt.Println("rece:", m.Topic())
+		fmt.Println("rece:", m.Topic(), m.Payload())
 	}
 	var ch chan int
 	connOpts := &MQTT.ClientOptions{
@@ -155,7 +130,7 @@ func Test4(t *testing.T) {
 		fmt.Println("mqtt connection failed.", zap.Error(token.Error()))
 		return
 	}
-	// defer mc.Disconnect(12)
+	defer mc.Disconnect(12)
 
 	ts := make([]string, 1000)
 
@@ -170,12 +145,12 @@ func Test4(t *testing.T) {
 			continue
 		}
 
-		if i > 100 && i < 1000 {
+		if i >= 100 && i < 1000 {
 			ts[i] = fmt.Sprintf("pb/data.api.Tick/SZSE/000%d", i)
 			continue
 		}
 	}
-	for j := 1; j <= 900; j++ {
+	for j := 1; j <= 290; j++ {
 		go func(i int) {
 			if token := mc.Subscribe(ts[i], 0, f); token.Wait() && token.Error() != nil {
 				fmt.Println("sub failed.", zap.Error(token.Error()))
@@ -195,6 +170,17 @@ func Test4(t *testing.T) {
 		// }
 
 	}
+	// for {
+	//
+	// 	for i := 1; i < 60; i++ {
+	// 		go func() {}()
+	// 		time.Sleep(time.Microsecond * 1)
+	// 		if token := mc.Publish(ts[i], 0, false, "hello"+fmt.Sprintf("%d", i)); token.Wait() && token.Error() != nil {
+	// 			fmt.Println("pub failed.", zap.Error(token.Error()))
+	//
+	// 		}
+	// 	}
+	// }
 
 	<-ch
 }
@@ -265,7 +251,7 @@ func NewTLSConfig(ca, crt, key string) *tls.Config {
 	// Alternatively, manually add CA certificates to
 	// default openssl CA bundle.
 	certpool := x509.NewCertPool()
-	//pemCerts, err := ioutil.ReadFile(ca)
+	// pemCerts, err := ioutil.ReadFile(ca)
 
 	certpool.AppendCertsFromPEM([]byte(`-----BEGIN CERTIFICATE-----
 MIIC9zCCAd+gAwIBAgIJALRgm2/ZL3NDMA0GCSqGSIb3DQEBCwUAMBIxEDAOBgNV
@@ -290,7 +276,7 @@ aPM590xia5BCDOWAMoz/qzalR4KXrndxhfwSxtceMojAbok5VxOvuOdgOg==
 	return &tls.Config{
 		RootCAs:    certpool,
 		ServerName: "myquant",
-		//ClientAuth: tls.NoClientCert,
+		// ClientAuth: tls.NoClientCert,
 	}
 }
 
@@ -309,7 +295,7 @@ func TestTlsClient(t *testing.T) {
 		AutoReconnect:        true,
 		PingTimeout:          10 * time.Second,
 		ConnectTimeout:       30 * time.Second,
-		//TLSConfig:            tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert},
+		// TLSConfig:            tls.Config{InsecureSkipVerify: true, ClientAuth: tls.NoClientCert},
 		OnConnectionLost: func(c MQTT.Client, err error) { fmt.Println("mqtt disconnected.", zap.Error(err)) },
 	}
 	connOpts.AddBroker("ssl://127.0.0.1:8080").SetTLSConfig(NewTLSConfig(

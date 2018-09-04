@@ -260,9 +260,9 @@ func (this *service) stop() {
 }
 
 func (this *service) publish(msg *message.PublishMessage, onComplete OnCompleteFunc) error {
-	//glog.Debugf("service/publish: Publishing %s", msg)
+	// glog.Debugf("service/publish: Publishing %s", msg)
 	_, err := this.writeMessage(msg)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return fmt.Errorf("(%s) Error sending %s message: %v", this.cid(), msg.Name(), err)
 	}
 

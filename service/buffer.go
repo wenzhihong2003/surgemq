@@ -118,10 +118,9 @@ func (this *buffer) Close() error {
 	this.pcond.Broadcast()
 	this.pcond.L.Unlock()
 
-	// fixme 这里是否写错了, 是不是应该写成 ccond. 这个没有完整看过代码, 不清楚. by wenzhiong
-	this.pcond.L.Lock()
+	this.ccond.L.Lock()
 	this.ccond.Broadcast()
-	this.pcond.L.Unlock()
+	this.ccond.L.Unlock()
 
 	return nil
 }

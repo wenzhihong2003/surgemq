@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/surgemq/message"
+	"github.com/wenzhihong2003/message"
 )
 
 func TestAckQueueOutOfOrder(t *testing.T) {

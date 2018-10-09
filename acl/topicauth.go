@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/surgemq/message"
+	"github.com/wenzhihong2003/message"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -22,12 +22,12 @@ type ClientInfo struct {
 	GmToken        string // mqtt password
 	GmUserName     string
 	GmUserId       string
-	GmSdkInfo      map[string]string //from mqtt userName
+	GmSdkInfo      map[string]string // from mqtt userName
 	ConnectMessage *message.ConnectMessage
 	SubTopicLimit  int
 }
 
-//sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
+// sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
 type Authenticator interface {
 	CheckPub(clientInfo *ClientInfo, topic string) bool
 	CheckSub(clientInfo *ClientInfo, topic string) bool
@@ -117,7 +117,7 @@ func log(subPub, topic string, clientInfo *ClientInfo) {
 	logMap[sdkLang] = unKnown
 	logMap[sdkVersion] = unKnown
 	if clientInfo != nil {
-		//logFields = append(logFields, zap.String("user-name", clientInfo.GmUserName))
+		// logFields = append(logFields, zap.String("user-name", clientInfo.GmUserName))
 		logMap[userId] = clientInfo.GmUserId
 		for k, v := range clientInfo.GmSdkInfo {
 			logMap[k] = v

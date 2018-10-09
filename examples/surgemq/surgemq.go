@@ -21,8 +21,8 @@ import (
 	"os/signal"
 	"runtime/pprof"
 
-	"github.com/surge/glog"
-	"github.com/fangwendong/surgemq/service"
+	"github.com/wenzhihong2003/glog"
+	"github.com/wenzhihong2003/surgemq/service"
 )
 
 var (

@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/surge/glog"
-	"golang.org/x/net/websocket"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+
+	"github.com/wenzhihong2003/glog"
+	"golang.org/x/net/websocket"
 )
 
 func DefaultListenAndServeWebsocket() error {

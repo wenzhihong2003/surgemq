@@ -20,11 +20,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/fangwendong/surgemq/acl"
-	"github.com/fangwendong/surgemq/sessions"
-	"github.com/fangwendong/surgemq/topics"
-	"github.com/surge/glog"
-	"github.com/surgemq/message"
+	"github.com/wenzhihong2003/glog"
+	"github.com/wenzhihong2003/message"
+	"github.com/wenzhihong2003/surgemq/acl"
+	"github.com/wenzhihong2003/surgemq/sessions"
+	"github.com/wenzhihong2003/surgemq/topics"
 )
 
 type (

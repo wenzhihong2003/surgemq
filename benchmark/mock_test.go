@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"testing"
 	"time"
@@ -9,10 +10,8 @@ import (
 	MQTT "github.com/liaoliaopro/paho.mqtt.golang"
 	"go.uber.org/zap"
 
-	"crypto/x509"
-
-	"github.com/fangwendong/surgemq/acl"
-	"github.com/fangwendong/surgemq/service"
+	"github.com/wenzhihong2003/surgemq/acl"
+	"github.com/wenzhihong2003/surgemq/service"
 )
 
 func Test1(t *testing.T) {

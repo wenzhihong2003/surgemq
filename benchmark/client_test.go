@@ -22,8 +22,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/surgemq/message"
-	"github.com/fangwendong/surgemq/service"
+	"github.com/wenzhihong2003/message"
+	"github.com/wenzhihong2003/surgemq/service"
 )
 
 var (

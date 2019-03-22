@@ -25,9 +25,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wenzhihong2003/glog"
 	"github.com/wenzhihong2003/message"
 	"github.com/wenzhihong2003/surgemq/sessions"
+	"github.com/wenzhihong2003/surgemq/slog"
 	"github.com/wenzhihong2003/surgemq/topics"
 )
 
@@ -106,7 +106,7 @@ func startServiceN(t testing.TB, u *url.URL, wg *sync.WaitGroup, ready1, ready2 
 	<-ready2
 
 	for _, svc := range svr.svcs {
-		glog.Infof("Stopping service %d", svc.id)
+		slog.Infof("Stopping service %d", svc.id)
 		svc.stop()
 	}
 

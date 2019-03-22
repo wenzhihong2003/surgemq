@@ -177,12 +177,12 @@ func (this *Client) Ping(onComplete OnCompleteFunc) error {
 // Disconnect sends a single DISCONNECT message to the server. The client immediately
 // terminates after the sending of the DISCONNECT message.
 func (this *Client) Disconnect() {
-	//msg := message.NewDisconnectMessage()
+	// msg := message.NewDisconnectMessage()
 	this.svc.stop()
 }
 
 func (this *Client) getSession(svc *service, req *message.ConnectMessage, resp *message.ConnackMessage) error {
-	//id := string(req.ClientId())
+	// id := string(req.ClientId())
 	svc.sess = &sessions.Session{}
 	return svc.sess.Init(req)
 }

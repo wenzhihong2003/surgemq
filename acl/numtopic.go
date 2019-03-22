@@ -17,7 +17,7 @@ func (this *topicNumAuth) CheckPub(clientInfo *ClientInfo, topic string) bool {
 	return true
 }
 
-//需要区分tick和bar
+// 需要区分tick和bar
 func (this *topicNumAuth) CheckSub(clientInfo *ClientInfo, topic string) (success bool) {
 
 	if clientInfo == nil {
@@ -25,7 +25,7 @@ func (this *topicNumAuth) CheckSub(clientInfo *ClientInfo, topic string) (succes
 	}
 
 	defer func() {
-		log("SUB", topic, clientInfo)
+		operLog("SUB", topic, clientInfo)
 	}()
 
 	// fmt.Println("clientInfo",*clientInfo)
@@ -62,7 +62,7 @@ func (this *topicNumAuth) ProcessUnSub(clientInfo *ClientInfo, topic string) {
 	}
 
 	defer func() {
-		log("UNSUB", topic, clientInfo)
+		operLog("UNSUB", topic, clientInfo)
 	}()
 
 	userName := clientInfo.GmToken

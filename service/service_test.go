@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wenzhihong2003/glog"
 	"github.com/wenzhihong2003/message"
+	"github.com/wenzhihong2003/surgemq/slog"
 	"github.com/wenzhihong2003/surgemq/topics"
 )
 
@@ -218,7 +218,7 @@ func TestServiceSub0Pub0(t *testing.T) {
 				count++
 
 				if count == 10 {
-					glog.Debugf("got 10 pub0")
+					slog.Debugf("got 10 pub0")
 					close(done2)
 				}
 
@@ -269,7 +269,7 @@ func TestServiceSub1Pub0(t *testing.T) {
 				count++
 
 				if count == 10 {
-					glog.Debugf("got 10 pub0")
+					slog.Debugf("got 10 pub0")
 					close(done2)
 				}
 

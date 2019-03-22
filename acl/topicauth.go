@@ -1,10 +1,12 @@
 package acl
 
 import (
+	"bytes"
 	"errors"
-	"fmt"
+	"strconv"
 
 	"github.com/wenzhihong2003/message"
+	"github.com/wenzhihong2003/surgemq/slog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -25,6 +27,42 @@ type ClientInfo struct {
 	GmSdkInfo      map[string]string // from mqtt userName
 	ConnectMessage *message.ConnectMessage
 	SubTopicLimit  int
+	LocalAddr      string
+	RemoteAddr     string
+}
+
+func (this *ClientInfo) String() string {
+	if this == nil {
+		return "AuthClientInfo nil"
+	}
+
+	buf := bytes.Buffer{}
+
+	buf.WriteString("AuthClientInfo GmToken=")
+	buf.WriteString(this.GmToken)
+
+	buf.WriteString(" GmUserName=")
+	buf.WriteString(this.GmUserName)
+
+	buf.WriteString(" SubTopicLimit=")
+	buf.WriteString(strconv.Itoa(this.SubTopicLimit))
+
+	buf.WriteString(" LocalAddr=")
+	buf.WriteString(this.LocalAddr)
+
+	buf.WriteString(" RemoteAddr=")
+	buf.WriteString(this.RemoteAddr)
+
+	buf.WriteString(" GmSdkInfo[")
+	for k, v := range this.GmSdkInfo {
+		buf.WriteString(k)
+		buf.WriteString("=")
+		buf.WriteString(v)
+		buf.WriteString(";")
+	}
+	buf.WriteString("]")
+
+	return buf.String()
 }
 
 // sdk-lang=python3.6|sdk-version=3.0.0.96|sdk-arch=64|sdk-os=win-amd64
@@ -102,14 +140,10 @@ const (
 	unKnown    = "unknown"
 )
 
-func log(subPub, topic string, clientInfo *ClientInfo) {
-	if logger == nil {
-		fmt.Println("Logger == nil ")
+func operLog(subPub, topic string, clientInfo *ClientInfo) {
+	if slog.OperationLogger == nil {
 		return
 	}
-	logFields := []zapcore.Field{}
-	logFields = append(logFields, zap.String("type", subPub))
-	logFields = append(logFields, zap.String("topic", topic))
 	logMap := make(map[string]string)
 	logMap[userId] = unKnown
 	logMap[sdkArch] = unKnown
@@ -123,8 +157,9 @@ func log(subPub, topic string, clientInfo *ClientInfo) {
 			logMap[k] = v
 		}
 	}
+	logFields := []zapcore.Field{zap.String("type", subPub), zap.String("topic", topic)}
 	for k, v := range logMap {
 		logFields = append(logFields, zap.String(k, v))
 	}
-	logger.Info("acl", logFields...)
+	slog.OperationLogger.Info("acl", logFields...)
 }

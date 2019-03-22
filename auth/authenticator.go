@@ -15,8 +15,10 @@
 package auth
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 var (
@@ -31,6 +33,22 @@ type ClientInfo struct {
 	UserName      string
 	UserId        string
 	SubTopicLimit int
+}
+
+func (this *ClientInfo) String() string {
+	if this == nil {
+		return "auth.ClientInfo: nil"
+	}
+	buf := bytes.Buffer{}
+	buf.WriteString("auth.ClientInfo: Token=")
+	buf.WriteString(this.Token)
+	buf.WriteString(" UserName=")
+	buf.WriteString(this.UserName)
+	buf.WriteString(" UserId=")
+	buf.WriteString(this.UserId)
+	buf.WriteString(" SubTopicLimit=")
+	buf.WriteString(strconv.Itoa(this.SubTopicLimit))
+	return buf.String()
 }
 
 type Authenticator interface {

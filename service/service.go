@@ -17,13 +17,14 @@ package service
 import (
 	"fmt"
 	"io"
+	"net"
 	"sync"
 	"sync/atomic"
 
-	"github.com/wenzhihong2003/glog"
 	"github.com/wenzhihong2003/message"
 	"github.com/wenzhihong2003/surgemq/acl"
 	"github.com/wenzhihong2003/surgemq/sessions"
+	"github.com/wenzhihong2003/surgemq/slog"
 	"github.com/wenzhihong2003/surgemq/topics"
 )
 
@@ -40,6 +41,34 @@ type stat struct {
 func (this *stat) increment(n int64) {
 	atomic.AddInt64(&this.bytes, n)
 	atomic.AddInt64(&this.msgs, 1)
+}
+
+type serviceCountStat struct {
+	total    int32
+	online   int32
+	downline int32
+}
+
+func (this *serviceCountStat) String() string {
+	if this != nil {
+		return fmt.Sprintf("serviceCountStat total=%d, online=%d, downline=%d",
+			atomic.LoadInt32(&this.total),
+			atomic.LoadInt32(&this.online),
+			atomic.LoadInt32(&this.downline),
+		)
+	}
+
+	return "serviceCountStat unknown"
+}
+
+func (this *serviceCountStat) addOnline() {
+	atomic.AddInt32(&this.total, 1)
+	atomic.AddInt32(&this.online, 1)
+}
+
+func (this *serviceCountStat) addDownline() {
+	atomic.AddInt32(&this.downline, 1)
+	atomic.AddInt32(&this.online, -1)
 }
 
 var (
@@ -124,19 +153,59 @@ type service struct {
 	rmsgs      []*message.PublishMessage
 	aclManger  *acl.TopicAclManger
 	clientInfo *acl.ClientInfo
+
+	ownerServer *Server
+
+	pubMsgChan    chan *message.PublishMessage
+	discardPubMsg int64
+
+	subedTopicCount int32 // 已订阅的主题数
+}
+
+func addr2str(addr net.Addr) string {
+	if addr != nil {
+		return addr.String()
+	} else {
+		return "nil"
+	}
+}
+
+func (this *service) sendPubMsgToBuffer() {
+	defer func() {
+		// Let's recover from panic
+		if r := recover(); r != nil {
+			if this != nil {
+				slog.Errorf("(%s) sendPubMsgToBuffer recovering from panic: %v", this.cid(), r)
+			} else {
+				slog.Errorf("sendPubMsgToBuffer recovering from panic: %v", r)
+			}
+		}
+		this.wgStopped.Done()
+		slog.Infof("(%s) Stopping sendPubMsgToBuffer", this.cid())
+	}()
+
+	this.wgStarted.Done()
+	slog.Infof("(%s) Starting sendPubMsgToBuffer", this.cid())
+	for msg := range this.pubMsgChan {
+		err := this.publish(msg, nil)
+		if err != nil {
+			slog.Errorf("service/sendPubMsgToBuffer: Error publishing message: %v", err)
+			return
+		}
+	}
 }
 
 func (this *service) start() error {
 	var err error
 
 	// Create the incoming ring buffer
-	this.in, err = newBuffer(defaultBufferSize)
+	this.in, err = newBuffer(gInBufferSize)
 	if err != nil {
 		return err
 	}
 
 	// Create the outgoing ring buffer
-	this.out, err = newBuffer(defaultBufferSize)
+	this.out, err = newBuffer(gOutBufferSize)
 	if err != nil {
 		return err
 	}
@@ -145,9 +214,28 @@ func (this *service) start() error {
 	if !this.client {
 		// Creat the onPublishFunc so it can be used for published messages
 		this.onpub = func(msg *message.PublishMessage) error {
-			if err := this.publish(msg, nil); err != nil {
-				glog.Errorf("service/onPublish: Error publishing message: %v", err)
-				return err
+			defer func() {
+				// Let's recover from panic
+				if r := recover(); r != nil {
+					if this != nil {
+						slog.Errorf("(%s) onpub发送publish消息回调 recovering from panic: %v", this.cid(), r)
+					} else {
+						slog.Errorf("onpub发送publish消息回调 recovering from panic: %v", r)
+					}
+				}
+			}()
+
+			if !this.isDone() {
+				select {
+				case this.pubMsgChan <- msg:
+				default:
+					slog.Warningf("(%s) 的pubMsgChan满了,丢掉一个,插入新的. clientInfo=%s",
+						this.cid(), this.clientInfo)
+
+					<-this.pubMsgChan
+					this.pubMsgChan <- msg
+					this.discardPubMsg++
+				}
 			}
 
 			return nil
@@ -181,8 +269,15 @@ func (this *service) start() error {
 	this.wgStopped.Add(1)
 	go this.sender()
 
+	// 每个连接上的pubmsg单独的goroutine发送
+	this.wgStarted.Add(1)
+	this.wgStopped.Add(1)
+	go this.sendPubMsgToBuffer()
+
 	// Wait for all the goroutines to start before returning
 	this.wgStarted.Wait()
+
+	this.ownerServer.serviceCountStat.addOnline()
 
 	return nil
 }
@@ -193,8 +288,16 @@ func (this *service) stop() {
 	defer func() {
 		// Let's recover from panic
 		if r := recover(); r != nil {
-			glog.Errorf("(%s) Recovering from panic: %v", this.cid(), r)
+			if this != nil {
+				slog.Errorf("(%s) Recovering from panic: %v", this.cid(), r)
+			} else {
+				slog.Errorf("Recovering from panic: %v", r)
+			}
 		}
+
+		// 从server的svc里移除
+		this.ownerServer.removeService(this)
+		this.ownerServer.serviceCountStat.addDownline()
 	}()
 
 	doit := atomic.CompareAndSwapInt64(&this.closed, 0, 1)
@@ -204,13 +307,15 @@ func (this *service) stop() {
 
 	// Close quit channel, effectively telling all the goroutines it's time to quit
 	if this.done != nil {
-		glog.Debugf("(%s) closing this.done", this.cid())
+		slog.Infof("(%s) closing this.done", this.cid())
 		close(this.done)
 	}
 
+	close(this.pubMsgChan)
+
 	// Close the network connection
 	if this.conn != nil {
-		glog.Debugf("(%s) closing this.conn", this.cid())
+		slog.Infof("(%s) closing this.conn", this.cid())
 		this.conn.Close()
 	}
 
@@ -220,19 +325,32 @@ func (this *service) stop() {
 	// Wait for all the goroutines to stop.
 	this.wgStopped.Wait()
 
-	glog.Debugf("(%s) Received %d bytes in %d messages.", this.cid(), this.inStat.bytes, this.inStat.msgs)
-	glog.Debugf("(%s) Sent %d bytes in %d messages.", this.cid(), this.outStat.bytes, this.outStat.msgs)
+	msgf := `mqtt 连接关闭时统计信息: (%s)
+	收到 %d bytes in %d messages, inBufferId=%d.
+	发送 %d bytes in %d messages, outBufferId=%d.
+	丢弃发送消息 %d 个
+	订阅主题数 %d 个
+	auth用户信息=%s`
+	slog.Infof(msgf,
+		this.cid(),
+		this.inStat.bytes, this.inStat.msgs, this.in.ID(),
+		this.outStat.bytes, this.outStat.msgs, this.out.ID(),
+		this.discardPubMsg,
+		atomic.LoadInt32(&this.subedTopicCount),
+		this.clientInfo,
+	)
 
 	// Unsubscribe from all the topics for this client, only for the server side though
 	if !this.client && this.sess != nil {
 		topics, _, err := this.sess.Topics()
 		if err != nil {
-			glog.Errorf("(%s/%d): %v", this.cid(), this.id, err)
+			slog.Errorf("(%s/%d): %v", this.cid(), this.id, err)
 		} else {
 			for _, t := range topics {
 				this.aclManger.ProcessUnSub(this.clientInfo, t)
+				atomic.AddInt32(&this.subedTopicCount, -1)
 				if err := this.topicsMgr.Unsubscribe([]byte(t), &this.onpub); err != nil {
-					glog.Errorf("(%s): Error unsubscribing topic %q: %v", this.cid(), t, err)
+					slog.Errorf("(%s): Error unsubscribing topic %q: %v", this.cid(), t, err)
 				}
 			}
 		}
@@ -240,7 +358,7 @@ func (this *service) stop() {
 
 	// Publish will message if WillFlag is set. Server side only.
 	if !this.client && this.sess.Cmsg.WillFlag() {
-		glog.Infof("(%s) service/stop: connection unexpectedly closed. Sending Will.", this.cid())
+		slog.Infof("(%s) service/stop: connection unexpectedly closed. Sending Will.", this.cid())
 		this.onPublish(this.sess.Will)
 	}
 
@@ -260,7 +378,7 @@ func (this *service) stop() {
 }
 
 func (this *service) publish(msg *message.PublishMessage, onComplete OnCompleteFunc) error {
-	// glog.Debugf("service/publish: Publishing %s", msg)
+	// slog.Debugf("service/publish: Publishing %s", msg)
 	_, err := this.writeMessage(msg)
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("(%s) Error sending %s message: %v", this.cid(), msg.Name(), err)
@@ -449,5 +567,13 @@ func (this *service) isDone() bool {
 }
 
 func (this *service) cid() string {
-	return fmt.Sprintf("%d/%s", this.id, this.sess.ID())
+	if this == nil {
+		return "unknow"
+	} else {
+		if this.sess != nil {
+			return fmt.Sprintf("%d/%s", this.id, this.sess.ID())
+		} else {
+			return fmt.Sprintf("%d/%s", this.id, "nosessionid")
+		}
+	}
 }

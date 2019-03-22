@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	MQTT "github.com/liaoliaopro/paho.mqtt.golang"
 	"github.com/stretchr/testify/require"
+	MQTT "github.com/wenzhihong2003/pahomqttclient"
 )
 
 var f MQTT.MessageHandler = func(client MQTT.Client, msg MQTT.Message) {

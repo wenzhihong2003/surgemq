@@ -24,16 +24,17 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/wenzhihong2003/glog"
 	"github.com/wenzhihong2003/message"
 	"github.com/wenzhihong2003/surgemq/acl"
 	"github.com/wenzhihong2003/surgemq/auth"
 	"github.com/wenzhihong2003/surgemq/sessions"
+	"github.com/wenzhihong2003/surgemq/slog"
 	"github.com/wenzhihong2003/surgemq/topics"
 )
 
@@ -104,9 +105,13 @@ type Server struct {
 
 	// A list of services created by the server. We keep track of them so we can
 	// gracefully shut them down if they are still alive when the server goes down.
+	// 这个变量没有用了
 	svcs []*service
+	// 用于保存当前的 services
+	svcmap           map[uint64]*service
+	serviceCountStat serviceCountStat
 
-	// Mutex for updating svcs
+	// Mutex for updating svcs, svcmap
 	mu sync.Mutex
 
 	// A indicator on whether this server is running
@@ -115,12 +120,97 @@ type Server struct {
 	// A indicator on whether this server has already checked configuration
 	configOnce sync.Once
 
-	subs         []interface{}
-	qoss         []byte
 	TopicAclFunc acl.GetAuthFunc
 	AuthFunc     auth.AuthFunc
 	AclProvider  string
 	aclManger    *acl.TopicAclManger
+
+	pubStat stat
+}
+
+type connInfo struct {
+	GmUserName      string            `json:"gmUserName"`
+	GmUserId        string            `json:"gmUserId"`
+	GmSdkInfo       map[string]string `json:"gmSdkInfo"`
+	SubTopicLimit   int               `json:"subTopicLimit"`
+	SubedTopicCount int32             `json:"subedTopicCount"` // 已订阅的主题数
+	LocalAddr       string            `json:"localAddr"`
+	RemoteAddr      string            `json:"remoteAddr"`
+	InBytes         int64             `json:"inBytes"`
+	InMsgs          int64             `json:"inMsgs"`
+	OutBytes        int64             `json:"outBytes"`
+	OutMsgs         int64             `json:"outMsgs"`
+	DiscardPubMsg   int64             `json:"discardPubMsg"`
+}
+
+// 得到每个连接的信息
+func (this *Server) GetServiceConnInfo() []connInfo {
+	if this == nil {
+		return []connInfo{}
+	}
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	result := make([]connInfo, 0, len(this.svcmap))
+	for _, svc := range this.svcmap {
+		clientInfo := svc.clientInfo
+		if clientInfo != nil {
+			result = append(result, connInfo{
+				GmUserName:      clientInfo.GmUserName,
+				GmUserId:        clientInfo.GmUserId,
+				GmSdkInfo:       clientInfo.GmSdkInfo,
+				SubTopicLimit:   clientInfo.SubTopicLimit,
+				SubedTopicCount: atomic.LoadInt32(&svc.subedTopicCount),
+				LocalAddr:       clientInfo.LocalAddr,
+				RemoteAddr:      clientInfo.RemoteAddr,
+				InBytes:         svc.inStat.bytes,
+				InMsgs:          svc.inStat.msgs,
+				OutBytes:        svc.outStat.bytes,
+				OutMsgs:         svc.outStat.msgs,
+				DiscardPubMsg:   svc.discardPubMsg,
+			})
+		}
+	}
+	return result
+}
+
+func (this *Server) GetServiceCountStatInfoData() map[string]interface{} {
+	if this != nil {
+		running := false
+		if atomic.LoadInt32(&this.running) == 1 {
+			running = true
+		}
+		return map[string]interface{}{
+			"running":  running,
+			"online":   this.serviceCountStat.online,
+			"downline": this.serviceCountStat.downline,
+			"total":    this.serviceCountStat.total,
+			"pubMsg":   atomic.LoadInt64(&this.pubStat.msgs),
+			"pubBytes": atomic.LoadInt64(&this.pubStat.bytes),
+		}
+	} else {
+		return map[string]interface{}{}
+	}
+}
+
+func (this *Server) GetServiceCountStatInfo() string {
+	if this != nil {
+		return "running=" + strconv.Itoa(int(this.running)) +
+			" " + this.serviceCountStat.String() +
+			"  发布消息 " + strconv.FormatInt(atomic.LoadInt64(&this.pubStat.msgs), 10) +
+			"  个 字节数 " + strconv.FormatInt(atomic.LoadInt64(&this.pubStat.bytes), 10)
+
+	} else {
+		return ""
+	}
+}
+
+// 启动server, 在退出时不关闭Server, 要求在应用层进行关闭
+func (this *Server) ListenAndServeWithoutCloseServer(uri string) error {
+	return this._listenAndServe(uri, false)
+}
+
+func (this *Server) ListenAndServe(uri string) error {
+	return this._listenAndServe(uri, true)
 }
 
 // ListenAndServe listents to connections on the URI requested, and handles any
@@ -128,7 +218,7 @@ type Server struct {
 // or if there's some critical error that stops the server from running. The URI
 // supplied should be of the form "protocol://host:port" that can be parsed by
 // url.Parse(). For example, an URI could be "tcp://0.0.0.0:1883".
-func (this *Server) ListenAndServe(uri string) error {
+func (this *Server) _listenAndServe(uri string, closeServerInReturn bool) error {
 	defer atomic.CompareAndSwapInt32(&this.running, 1, 0)
 
 	if !atomic.CompareAndSwapInt32(&this.running, 0, 1) {
@@ -147,8 +237,10 @@ func (this *Server) ListenAndServe(uri string) error {
 		return err
 	}
 	defer this.ln.Close()
-	defer this.Close()
-	glog.Infof("server/ListenAndServe: server is ready...")
+	if closeServerInReturn {
+		defer this.Close()
+	}
+	slog.Infof("server/ListenAndServe: mqttserver 已准备好接受客户端请求...")
 
 	var tempDelay time.Duration // how long to sleep on accept failure
 
@@ -174,7 +266,7 @@ func (this *Server) ListenAndServe(uri string) error {
 				if max := 1 * time.Second; tempDelay > max {
 					tempDelay = max
 				}
-				glog.Errorf("server/ListenAndServe: Accept error: %v; retrying in %v", err, tempDelay)
+				slog.Errorf("server/ListenAndServe: Accept error: %v; retrying in %v", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}
@@ -217,7 +309,7 @@ func (this *Server) TlsListenAndServeWithByte(uri string, certPEMBlock, keyPEMBl
 	}
 	defer this.ln.Close()
 
-	glog.Infof("server/ListenAndServe: server is ready...")
+	slog.Infof("server/ListenAndServe: server is ready...")
 
 	var tempDelay time.Duration // how long to sleep on accept failure
 
@@ -243,7 +335,7 @@ func (this *Server) TlsListenAndServeWithByte(uri string, certPEMBlock, keyPEMBl
 				if max := 1 * time.Second; tempDelay > max {
 					tempDelay = max
 				}
-				glog.Errorf("server/ListenAndServe: Accept error: %v; retrying in %v", err, tempDelay)
+				slog.Errorf("server/ListenAndServe: Accept error: %v; retrying in %v", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}
@@ -295,7 +387,7 @@ func (this *Server) TlsListenAndServeWithFile(uri, ca, crt, key string) error {
 	}
 	defer this.ln.Close()
 
-	glog.Infof("server/ListenAndServe: server is ready...")
+	slog.Infof("server/ListenAndServe: server is ready...")
 
 	var tempDelay time.Duration // how long to sleep on accept failure
 
@@ -321,7 +413,7 @@ func (this *Server) TlsListenAndServeWithFile(uri, ca, crt, key string) error {
 				if max := 1 * time.Second; tempDelay > max {
 					tempDelay = max
 				}
-				glog.Errorf("server/ListenAndServe: Accept error: %v; retrying in %v", err, tempDelay)
+				slog.Errorf("server/ListenAndServe: Accept error: %v; retrying in %v", err, tempDelay)
 				time.Sleep(tempDelay)
 				continue
 			}
@@ -344,24 +436,29 @@ func (this *Server) Publish(msg *message.PublishMessage, onComplete OnCompleteFu
 
 	if msg.Retain() {
 		if err := this.topicsMgr.Retain(msg); err != nil {
-			glog.Errorf("Error retaining message: %v", err)
+			slog.Errorf("Error retaining message: %v", err)
 		}
 	}
 
-	if err := this.topicsMgr.Subscribers(msg.Topic(), msg.QoS(), &this.subs, &this.qoss); err != nil {
+	svcLen := len(this.svcmap)
+	subs := make([]interface{}, 0, svcLen)
+	qoss := make([]byte, 0, svcLen)
+
+	if err := this.topicsMgr.Subscribers(msg.Topic(), msg.QoS(), &subs, &qoss); err != nil {
 		return err
 	}
 
 	msg.SetRetain(false)
 
-	// glog.Debugf("(server) Publishing to topic %q and %d subscribers", string(msg.Topic()), len(this.subs))
-	for _, s := range this.subs {
+	slog.Debugf("(server) Publishing to topic %q and %d subscribers", string(msg.Topic()), len(subs))
+	for _, s := range subs {
 		if s != nil {
 			fn, ok := s.(*OnPublishFunc)
 			if !ok {
-				glog.Errorf("Invalid onPublish Function")
+				slog.Errorf("Invalid onPublish Function")
 			} else {
 				(*fn)(msg)
+				this.pubStat.increment(int64(msg.Len()))
 			}
 		}
 	}
@@ -380,10 +477,22 @@ func (this *Server) Close() error {
 	// blocked waiting for new connections.
 	this.ln.Close()
 
-	for _, svc := range this.svcs {
-		glog.Infof("Stopping service %d", svc.id)
-		svc.stop()
+	slog.Infof("at close server, server's serviceCountStatus %s", this.serviceCountStat.String())
+
+	// this.mu.Lock()
+	// for _, svc := range this.svcs {
+	// 	if !svc.isDone() {
+	// 		slog.Debugf("Stopping service %d", svc.id)
+	// 		svc.stop()
+	// 	}
+	// }
+	for _, svc := range this.svcmap {
+		if !svc.isDone() {
+			slog.Debugf("Stopping service %d", svc.id)
+			svc.stop()
+		}
 	}
+	// this.mu.Unlock()
 
 	if this.sessMgr != nil {
 		this.sessMgr.Close()
@@ -438,7 +547,7 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 	req, err := getConnectMessage(conn)
 	if err != nil {
 		if cerr, ok := err.(message.ConnackCode); ok {
-			// glog.Debugf("request   message: %s\nresponse message: %s\nerror           : %v", mreq, resp, err)
+			// slog.Debugf("request   message: %s\nresponse message: %s\nerror           : %v", mreq, resp, err)
 			resp.SetReturnCode(cerr)
 			resp.SetSessionPresent(false)
 			writeMessage(conn, resp)
@@ -460,6 +569,7 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		req.SetKeepAlive(minKeepAlive)
 	}
 
+	aclClientInfo := getClientInfo(clientInfo, req)
 	svc = &service{
 		id:     atomic.AddUint64(&gsvcid, 1),
 		client: false,
@@ -473,7 +583,24 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		sessMgr:    this.sessMgr,
 		topicsMgr:  this.topicsMgr,
 		aclManger:  this.aclManger,
-		clientInfo: getClientInfo(clientInfo, req),
+		clientInfo: aclClientInfo,
+
+		ownerServer: this,
+
+		done: make(chan struct{}, 1),
+
+		pubMsgChan: make(chan *message.PublishMessage, gPubMsgChanSize),
+	}
+
+	if aclClientInfo != nil && conn != nil {
+		aclClientInfo.RemoteAddr = addr2str(conn.RemoteAddr())
+		aclClientInfo.LocalAddr = addr2str(conn.LocalAddr())
+	}
+
+	// 设置一下clientid
+	if aclClientInfo != nil && len(req.ClientId()) == 0 && len(aclClientInfo.GmUserId) > 0 {
+		req.SetClientId([]byte(fmt.Sprintf("gmuserid_%s", aclClientInfo.GmUserId)))
+		req.SetCleanSession(true)
 	}
 
 	err = this.getSession(svc, req, resp)
@@ -495,13 +622,28 @@ func (this *Server) handleConnection(c io.Closer) (svc *service, err error) {
 		return nil, err
 	}
 
-	// this.mu.Lock()
+	this.mu.Lock()
+	if len(this.svcmap) == 0 {
+		this.svcmap = make(map[uint64]*service, 2048)
+	}
+	this.svcmap[svc.id] = svc
+	// if len(this.svcs) == 0 {
+	// 	this.svcs = make([]*service, 0, 2048)
+	// }
 	// this.svcs = append(this.svcs, svc)
-	// this.mu.Unlock()
+	this.mu.Unlock()
 
-	glog.Infof("(%s) server/handleConnection: Connection established.", svc.cid())
+	slog.Infof("(%s) server/handleConnection: Connection established.", svc.cid())
 
 	return svc, nil
+}
+
+func (this *Server) removeService(srv *service) {
+	this.mu.Lock()
+	if this != nil && srv != nil {
+		delete(this.svcmap, srv.id)
+	}
+	this.mu.Unlock()
 }
 
 /*
@@ -563,7 +705,7 @@ func (this *Server) checkConfiguration() error {
 
 		this.authMgr, err = auth.NewManager(this.Authenticator, this.AuthFunc)
 		if err != nil {
-			fmt.Println(err.Error())
+			slog.Errorf("surgemq checkConfiguration has error, err=%v", err)
 			return
 		}
 

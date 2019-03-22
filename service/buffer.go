@@ -18,8 +18,12 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
+
+	"github.com/wenzhihong2003/surgemq/slog"
 )
 
 var (
@@ -27,10 +31,95 @@ var (
 )
 
 const (
-	defaultBufferSize     = 1024 * 256
-	defaultReadBlockSize  = 8192
-	defaultWriteBlockSize = 8192
+	defaultInBufferSize   = 256 * 1024
+	defaultOutBufferSize  = 512 * 1024
+	defaultBufferSize     = 256 * 1024
+	defaultReadBlockSize  = 4 * 1024
+	defaultWriteBlockSize = 4 * 1024
+
+	defaultPubMsgChanSize = 1000
 )
+
+var (
+	gInBufferSize   int64 = 256 * 1024
+	gOutBufferSize  int64 = 256 * 1024
+	gPubMsgChanSize int64 = 300
+)
+
+// 从环境变量读取设置为buffer的大小及pubMsgChan(用于发送publish msg的队列)的大小
+func InitParamFromEnv() {
+	inBufferSizeStr := os.Getenv("GM_IN_BUFFER_SIZE")
+	if len(inBufferSizeStr) == 0 {
+		slog.Infof("环境变量 GM_IN_BUFFER_SIZE 没有设置, 使用默认值: %d", defaultInBufferSize/1024)
+		gInBufferSize = defaultInBufferSize
+	} else {
+		v, err := strconv.ParseInt(inBufferSizeStr, 10, 32)
+		if err != nil {
+			slog.Warningf("从环境变量 GM_IN_BUFFER_SIZE 读取的值 %s 不能转为int, 使用默认值 %d", inBufferSizeStr, defaultInBufferSize/1024)
+			gInBufferSize = defaultInBufferSize
+		} else {
+			gInBufferSize = v
+			if gInBufferSize < 0 {
+				slog.Warningf("gInBufferSize < 0, 使用默认值 %d", defaultInBufferSize/1024)
+				gInBufferSize = defaultInBufferSize
+			} else {
+				if !powerOfTwo64(gInBufferSize) {
+					slog.Warningf("从环境变量 GM_IN_BUFFER_SIZE 要设置成 128, 256, 512, 1024 这类的值, 当前值%d不满足, 使用默认值%d", defaultInBufferSize/1024)
+					gInBufferSize = defaultInBufferSize
+				}
+			}
+		}
+	}
+
+	outBufferSizeStr := os.Getenv("GM_OUT_BUFFER_SIZE")
+	if len(outBufferSizeStr) == 0 {
+		slog.Infof("环境变量 GM_OUT_BUFFER_SIZE 没有设置, 使用默认值: %d", defaultOutBufferSize/1024)
+		gOutBufferSize = defaultOutBufferSize
+	} else {
+		v, err := strconv.ParseInt(outBufferSizeStr, 10, 32)
+		if err != nil {
+			slog.Warningf("从环境变量 GM_OUT_BUFFER_SIZE 读取的值 %s 不能转为int, 使用默认值 %d", outBufferSizeStr, defaultOutBufferSize/1024)
+			gOutBufferSize = defaultOutBufferSize
+		} else {
+			gOutBufferSize = v
+			if gOutBufferSize < 0 {
+				slog.Warningf("gOutBufferSize < 0, 使用默认值 %d", defaultOutBufferSize/1024)
+				gOutBufferSize = defaultOutBufferSize
+			} else {
+				if !powerOfTwo64(gOutBufferSize) {
+					slog.Warningf("从环境变量 GM_OUT_BUFFER_SIZE 要设置成 128, 256, 512, 1024 这类的值, 当前值%d不满足, 使用默认值%d", defaultOutBufferSize/1024)
+					gOutBufferSize = defaultOutBufferSize
+				}
+			}
+		}
+	}
+
+	pubMsgChanSizeStr := os.Getenv("GM_PUB_MSG_CHAN_SIZE")
+	if len(pubMsgChanSizeStr) == 0 {
+		slog.Infof("环境变量 GM_PUB_MSG_CHAN_SIZE 没有设置, 使用默认值: %d", defaultPubMsgChanSize)
+		gPubMsgChanSize = defaultPubMsgChanSize
+	} else {
+		v, err := strconv.ParseInt(pubMsgChanSizeStr, 10, 32)
+		if err != nil {
+			slog.Warningf("从环境变量 GM_PUB_MSG_CHAN_SIZE 读取的值 %s 不能转为int, 使用默认值 %d", pubMsgChanSizeStr, defaultPubMsgChanSize)
+			gPubMsgChanSize = defaultPubMsgChanSize
+		} else {
+			gPubMsgChanSize = v
+
+			if gPubMsgChanSize < 0 {
+				slog.Warningf("gPubMsgChanSize < 0, 使用默认值", defaultPubMsgChanSize)
+			} else {
+				var maxSize int64 = 1024 * 50
+				if gPubMsgChanSize > maxSize {
+					slog.Warningf("gPubMsgChanSize > %d, 超过最大值, 设置为最大值 %d", maxSize, maxSize)
+					gPubMsgChanSize = maxSize
+				}
+			}
+		}
+	}
+
+	slog.Infof("初始化surgemq参数 gInBufferSize=%d gOutBufferSize=%d gPubMsgChanSize=%d", gInBufferSize, gOutBufferSize, gPubMsgChanSize)
+}
 
 type sequence struct {
 	// The current position of the producer or consumer
@@ -64,7 +153,10 @@ type buffer struct {
 	size int64
 	mask int64
 
-	done int64
+	done int32
+
+	// 关闭操作只能进行一次
+	closeOnce sync.Once
 
 	pseq *sequence
 	cseq *sequence
@@ -112,15 +204,20 @@ func (this *buffer) ID() int64 {
 }
 
 func (this *buffer) Close() error {
-	atomic.StoreInt64(&this.done, 1)
+	this.closeOnce.Do(func() {
+		atomic.StoreInt32(&this.done, 1)
 
-	this.pcond.L.Lock()
-	this.pcond.Broadcast()
-	this.pcond.L.Unlock()
+		this.pcond.L.Lock()
+		this.pcond.Broadcast()
+		this.pcond.L.Unlock()
 
-	this.ccond.L.Lock()
-	this.ccond.Broadcast()
-	this.ccond.L.Unlock()
+		this.ccond.L.Lock()
+		this.ccond.Broadcast()
+		this.ccond.L.Unlock()
+
+		slog.Infof("buffer id=%d size=%dK cwait=%d pwait=%d done=%d", this.id, this.size/1024, this.cwait,
+			this.pwait, atomic.LoadInt32(&this.done))
+	})
 
 	return nil
 }
@@ -184,7 +281,7 @@ func (this *buffer) WriteTo(w io.Writer) (int64, error) {
 		if len(p) > 0 {
 			n, err := w.Write(p)
 			total += int64(n)
-			//glog.Debugf("Wrote %d bytes, totaling %d bytes", n, total)
+			// slog.Debugf("Wrote %d bytes, totaling %d bytes", n, total)
 
 			if err != nil {
 				return total, err
@@ -204,7 +301,7 @@ func (this *buffer) WriteTo(w io.Writer) (int64, error) {
 
 func (this *buffer) Read(p []byte) (int, error) {
 	if this.isDone() && this.Len() == 0 {
-		//glog.Debugf("isDone and len = %d", this.Len())
+		// slog.Debugf("isDone and len = %d", this.Len())
 		return 0, io.EOF
 	}
 
@@ -392,6 +489,7 @@ func (this *buffer) ReadWait(n int) ([]byte, error) {
 			return nil, io.EOF
 		}
 
+		this.cwait++
 		this.ccond.Wait()
 	}
 	this.ccond.L.Unlock()
@@ -558,11 +656,7 @@ func (this *buffer) waitForWriteSpace(n int) (int64, int, error) {
 }
 
 func (this *buffer) isDone() bool {
-	if atomic.LoadInt64(&this.done) == 1 {
-		return true
-	}
-
-	return false
+	return atomic.LoadInt32(&this.done) == 1
 }
 
 func ringCopy(dst, src []byte, start int64) int {

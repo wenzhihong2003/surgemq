@@ -12,13 +12,13 @@ func (this alwaysVerify) CheckPub(clientInfo *ClientInfo, topic string) bool {
 }
 
 func (this alwaysVerify) CheckSub(clientInfo *ClientInfo, topic string) bool {
-	log("SUB", topic, clientInfo)
+	operLog("SUB", topic, clientInfo)
 	return true
 
 }
 
 func (this alwaysVerify) ProcessUnSub(clientInfo *ClientInfo, topic string) {
-	log("UNSUB", topic, clientInfo)
+	operLog("UNSUB", topic, clientInfo)
 }
 
 func (this alwaysVerify) SetAuthFunc(f GetAuthFunc) {

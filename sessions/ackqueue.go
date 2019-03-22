@@ -110,7 +110,7 @@ func (this *Ackqueue) Wait(msg message.Message, onComplete interface{}) error {
 	switch msg := msg.(type) {
 	case *message.PublishMessage:
 		if msg.QoS() == message.QosAtMostOnce {
-			//return fmt.Errorf("QoS 0 messages don't require ack")
+			// return fmt.Errorf("QoS 0 messages don't require ack")
 			return errWaitMessage
 		}
 
@@ -157,9 +157,9 @@ func (this *Ackqueue) Ack(msg message.Message) error {
 			if err != nil {
 				return err
 			}
-			//glog.Debugf("Acked: %v", msg)
-			//} else {
-			//glog.Debugf("Cannot ack %s message with packet ID %d", msg.Type(), msg.PacketId())
+			// slog.Debugf("Acked: %v", msg)
+			// } else {
+			// slog.Debugf("Cannot ack %s message with packet ID %d", msg.Type(), msg.PacketId())
 		}
 
 	case message.PINGRESP:

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	MQTT "github.com/liaoliaopro/paho.mqtt.golang"
+	MQTT "github.com/wenzhihong2003/pahomqttclient"
 	"go.uber.org/zap"
 
 	"github.com/wenzhihong2003/surgemq/acl"
